@@ -31,7 +31,7 @@ export function SessionsList() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Sessions Récentes</CardTitle>
+        <CardTitle className="text-white">Sessions Récentes</CardTitle>
       </CardHeader>
       <CardContent>
         {sessions.length === 0 ? (

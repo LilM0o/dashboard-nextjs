@@ -29,7 +29,7 @@ export function QuotasDisplay() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
+        <CardTitle className="flex items-center gap-2 text-white">
           <Zap className="w-5 h-5" />
           Quotas API
         </CardTitle>

@@ -4,7 +4,7 @@ import path from "path";
 
 export async function GET() {
   try {
-    const dataPath = path.join(process.cwd(), "../../workspace/dashboard/dashboard-data.json");
+    const dataPath = path.join(process.env.HOME || "/home/ubuntu", "clawd/workspace/dashboard/dashboard-data.json");
     const jsonData = fs.readFileSync(dataPath, "utf-8");
     const data = JSON.parse(jsonData);
     

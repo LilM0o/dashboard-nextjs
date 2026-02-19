@@ -1,37 +1,78 @@
 import { NextResponse } from "next/server";
-import fs from "fs";
+import { promises as fs } from "fs";
 import path from "path";
+import { exec } from "child_process";
+import { promisify } from "util";
+
+const execAsync = promisify(exec);
+const DASHBOARD_DATA_PATH = path.join(
+  process.env.HOME || "/home/ubuntu",
+  "clawd/workspace/dashboard/dashboard-data.json"
+);
 
 export async function GET() {
   try {
-    const dataPath = path.join(process.cwd(), "../../workspace/dashboard/dashboard-data.json");
-    const jsonData = fs.readFileSync(dataPath, "utf-8");
-    const data = JSON.parse(jsonData);
-    
-    const jobs = data.cron?.jobs ?? [];
-    
+    // Récupérer les données du fichier JSON
+    let cronData = { status: "OK", recentExecutions: 0 };
+
+    try {
+      const data = await fs.readFile(DASHBOARD_DATA_PATH, "utf-8");
+      const dashboardData = JSON.parse(data);
+      cronData = dashboardData.cron ?? cronData;
+    } catch (error) {
+      console.error("Erreur lecture dashboard-data.json:", error);
+    }
+
+    // Récupérer la liste des crons via openclaw cron list
+    let jobs = [];
+    let total = 0;
+    let active = 0;
+
+    try {
+      const { stdout } = await execAsync("openclaw cron list --json");
+      const cronList = JSON.parse(stdout);
+
+      jobs = (cronList.jobs || []).map((job: any) => ({
+        name: job.name || "Unknown",
+        schedule: job.schedule?.kind || "unknown",
+        status: job.enabled ? "enabled" : "disabled",
+        last_status: job.lastStatus || "unknown",
+        enabled: job.enabled ?? false,
+      }));
+
+      total = jobs.length;
+      active = jobs.filter((job: any) => job.enabled).length;
+    } catch (error) {
+      console.error("Erreur récupération crons:", error);
+      // Fallback : utiliser les données du fichier
+      jobs = [
+        {
+          name: "dashboard-data",
+          schedule: "every",
+          status: "enabled",
+          last_status: cronData.status === "OK" ? "ok" : "error",
+          enabled: true,
+        },
+      ];
+      total = 1;
+      active = 1;
+    }
+
     return NextResponse.json({
-      jobs: jobs.map((job: any) => ({
-        name: job.name,
-        schedule: job.schedule,
-        status: job.status,
-        last_status: job.last_status,
-        enabled: job.enabled
-      })),
-      total: jobs.length,
-      active: jobs.filter((j: any) => j.enabled).length
+      jobs,
+      total,
+      active,
     });
-  } catch (error: any) {
-    return NextResponse.json({
-      jobs: [
-        { name: "Heartbeat Matin", schedule: "0 8 * * *", status: "active", last_status: "ok", enabled: true },
-        { name: "Heartbeat Après-midi", schedule: "0 14 * * *", status: "active", last_status: "ok", enabled: true },
-        { name: "Heartbeat Soir", schedule: "0 20 * * *", status: "active", last_status: "ok", enabled: true },
-        { name: "Backup GitHub", schedule: "0 3 * * *", status: "active", last_status: "ok", enabled: true },
-        { name: "Nightly Improvement", schedule: "0 23 * * *", status: "active", last_status: "ok", enabled: true }
-      ],
-      total: 5,
-      active: 5
-    });
+  } catch (error) {
+    console.error("Erreur API /api/cron:", error);
+    return NextResponse.json(
+      {
+        jobs: [],
+        total: 0,
+        active: 0,
+        error: "Erreur récupération cron jobs",
+      },
+      { status: 500 }
+    );
   }
 }

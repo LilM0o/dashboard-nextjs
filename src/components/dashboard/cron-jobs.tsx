@@ -33,7 +33,7 @@ export function CronJobs() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center justify-between">
+        <CardTitle className="flex items-center justify-between text-white">
           <div className="flex items-center gap-2">
             <Calendar className="w-5 h-5" />
             Cron Jobs

@@ -9,7 +9,8 @@ import { ErrorsDisplay } from "@/components/dashboard/errors-display";
 import { CronJobs } from "@/components/dashboard/cron-jobs";
 import { AgentsKpis } from "@/components/dashboard/agents-kpis";
 import { SessionsList } from "@/components/dashboard/sessions-list";
-import { Activity, Zap, Folder, Server, ExternalLink } from "lucide-react";
+import { CpuRamChart } from "@/components/dashboard/cpu-ram-chart";
+import { Activity, Zap, Folder, Server, ExternalLink, Gauge, Terminal } from "lucide-react";
 
 type TabType = "system" | "ai";
 
@@ -17,62 +18,88 @@ export default function Dashboard() {
   const [activeTab, setActiveTab] = useState<TabType>("system");
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6">
-      {/* Header with Quick Links */}
-      <header className="mb-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-white">🚀 OpenClaw Dashboard</h1>
-            <p className="text-slate-400">Monitoring temps réel - Refresh: 30s</p>
+    <div className="min-h-screen bg-[#030712] p-4 md:p-6 relative overflow-hidden">
+      {/* Animated background */}
+      <div className="fixed inset-0 pointer-events-none">
+        <div className="absolute top-0 left-1/4 w-96 h-96 bg-cyan-500/5 rounded-full blur-3xl animate-pulse" />
+        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-purple-500/5 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
+      </div>
+
+      {/* Header */}
+      <header className="relative mb-6">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/30">
+              <Terminal className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">
+                OpenClaw <span className="text-cyan-400">Dashboard</span>
+              </h1>
+              <p className="text-slate-400 text-sm flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                Monitoring temps réel — Refresh: 30s
+              </p>
+            </div>
           </div>
           
           {/* Quick Links */}
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-2">
             <a
               href="http://100.86.54.54:8080"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+              className="flex items-center gap-2 px-3 py-2 bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 text-blue-400 rounded-lg transition-all text-sm"
             >
               <Server className="w-4 h-4" />
-              <span className="text-sm font-medium">Gateway</span>
+              <span className="font-medium">Gateway</span>
               <ExternalLink className="w-3 h-3" />
             </a>
             <a
               href="http://100.86.54.54:8443"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
+              className="flex items-center gap-2 px-3 py-2 bg-green-600/20 hover:bg-green-600/30 border border-green-500/30 text-green-400 rounded-lg transition-all text-sm"
             >
               <Folder className="w-4 h-4" />
-              <span className="text-sm font-medium">Files</span>
+              <span className="font-medium">Files</span>
+              <ExternalLink className="w-3 h-3" />
+            </a>
+            <a
+              href="http://100.86.54.54:3001"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 px-3 py-2 bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 text-purple-400 rounded-lg transition-all text-sm"
+            >
+              <Gauge className="w-4 h-4" />
+              <span className="font-medium">Mission Ctrl</span>
               <ExternalLink className="w-3 h-3" />
             </a>
           </div>
         </div>
 
         {/* Tabs Navigation */}
-        <div className="flex gap-2 mt-6">
+        <div className="flex gap-2 mt-6 p-1 bg-slate-900/50 rounded-xl w-fit backdrop-blur-sm">
           <button
             onClick={() => setActiveTab("system")}
-            className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all ${
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-medium transition-all ${
               activeTab === "system"
-                ? "bg-blue-600 text-white"
-                : "bg-slate-700 text-slate-300 hover:bg-slate-600"
+                ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 shadow-lg shadow-cyan-500/10"
+                : "text-slate-400 hover:text-white hover:bg-slate-800/50"
             }`}
           >
-            <Activity className="w-5 h-5" />
+            <Activity className="w-4 h-4" />
             🖥️ Système
           </button>
           <button
             onClick={() => setActiveTab("ai")}
-            className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all ${
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-medium transition-all ${
               activeTab === "ai"
-                ? "bg-purple-600 text-white"
-                : "bg-slate-700 text-slate-300 hover:bg-slate-600"
+                ? "bg-purple-500/20 text-purple-400 border border-purple-500/30 shadow-lg shadow-purple-500/10"
+                : "text-slate-400 hover:text-white hover:bg-slate-800/50"
             }`}
           >
-            <Zap className="w-5 h-5" />
+            <Zap className="w-4 h-4" />
             🤖 AI Tools
           </button>
         </div>
@@ -80,20 +107,21 @@ export default function Dashboard() {
 
       {/* System Tab Content */}
       {activeTab === "system" && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 animate-fade-in">
           <SystemMetrics />
           <ErrorsDisplay />
           <CronJobs />
+          <CpuRamChart className="lg:col-span-2" />
         </div>
       )}
 
       {/* AI Tools Tab Content */}
       {activeTab === "ai" && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 animate-fade-in">
           <QuotasDisplay />
           <TokensChart />
           <AgentsKpis />
-          <SessionsList />
+          <SessionsList className="lg:col-span-2" />
         </div>
       )}
     </div>

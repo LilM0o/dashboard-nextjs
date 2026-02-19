@@ -32,7 +32,7 @@ export function TokensChart() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Tokens (7 jours)</CardTitle>
+        <CardTitle className="text-white">Tokens (7 jours)</CardTitle>
       </CardHeader>
       <CardContent>
         {error ? (

@@ -27,7 +27,7 @@ export function ErrorsDisplay() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
+        <CardTitle className="flex items-center gap-2 text-white">
           <AlertTriangle className="w-5 h-5 text-yellow-500" />
           Errors (24h)
         </CardTitle>
