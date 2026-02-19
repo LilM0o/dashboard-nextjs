@@ -1,8 +1,9 @@
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Cpu, Activity } from "lucide-react";
+import { Cpu, Activity, RefreshCw } from "lucide-react";
 import useSWR from "swr";
+import { useEffect, useState } from "react";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
@@ -16,10 +17,19 @@ interface HistoryData {
   ramHistory?: HistoryPoint[];
 }
 
-export function CpuRamChart() {
+interface CpuRamChartProps {
+  className?: string;
+}
+
+export function CpuRamChart({ className = "" }: CpuRamChartProps) {
   const { data, error, isLoading } = useSWR<HistoryData>("/api/history", fetcher, {
-    refreshInterval: 300000, //5 minutes
+    refreshInterval: 60000, //1 minute
   });
+  const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
+
+  useEffect(() => {
+    setLastUpdate(new Date());
+  }, [data]);
 
   if (error) return <div className="text-red-400">Erreur chargement</div>;
   if (isLoading) return <div className="text-slate-400">Chargement...</div>;
@@ -27,6 +37,7 @@ export function CpuRamChart() {
   const cpuHistory = data?.cpuHistory ?? [];
   const ramHistory = data?.ramHistory ?? [];
 
+  // Afficher le graphique même avec peu de données, ou un placeholder initial
   if (cpuHistory.length === 0) {
     return (
       <Card>
@@ -37,8 +48,13 @@ export function CpuRamChart() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-slate-400 text-sm">
-            Pas encore de données historiques.
+          <div className="space-y-4">
+            <div className="text-slate-400 text-sm">
+              📊 Première collecte de données en cours...
+            </div>
+            <div className="text-slate-500 text-xs">
+              L'historique sera disponible après 1 heure de fonctionnement
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -74,7 +90,7 @@ export function CpuRamChart() {
   const maxRam = Math.max(...ramHistory.map(p => p.value));
 
   return (
-    <Card className="lg:col-span-2">
+    <Card className={className || "lg:col-span-2"}>
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-white">
           <Cpu className="w-5 h-5 text-blue-400" />
@@ -205,6 +221,12 @@ export function CpuRamChart() {
               <div className="w-3 h-3 rounded-sm bg-red-500" />
               <span className="text-xs text-slate-300">Très fort</span>
             </div>
+          </div>
+
+          {/* Last update */}
+          <div className="flex items-center justify-center gap-2 text-xs text-slate-400 pt-2">
+            <RefreshCw className="w-3 h-3" />
+            <span>Mis à jour: {lastUpdate.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span>
           </div>
         </div>
       </CardContent>

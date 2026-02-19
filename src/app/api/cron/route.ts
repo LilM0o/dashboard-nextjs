@@ -36,7 +36,7 @@ export async function GET() {
         name: job.name || "Unknown",
         schedule: job.schedule?.kind || "unknown",
         status: job.enabled ? "enabled" : "disabled",
-        last_status: job.lastStatus || "unknown",
+        last_status: job.state?.lastStatus || "unknown",
         enabled: job.enabled ?? false,
       }));
 

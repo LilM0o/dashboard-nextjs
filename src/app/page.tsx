@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SystemMetrics } from "@/components/dashboard/system-metrics";
 import { QuotasDisplay } from "@/components/dashboard/quotas-display";
@@ -10,12 +10,29 @@ import { CronJobs } from "@/components/dashboard/cron-jobs";
 import { AgentsKpis } from "@/components/dashboard/agents-kpis";
 import { SessionsList } from "@/components/dashboard/sessions-list";
 import { CpuRamChart } from "@/components/dashboard/cpu-ram-chart";
-import { Activity, Zap, Folder, Server, ExternalLink, Gauge, Terminal } from "lucide-react";
+import { MessagesChart } from "@/components/dashboard/messages-chart";
+import { Activity, Zap, Folder, Server, ExternalLink, Gauge, Terminal, RefreshCw } from "lucide-react";
 
 type TabType = "system" | "ai";
 
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState<TabType>("system");
+  const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Refresh global - recharger la page
+  const handleRefresh = useCallback(() => {
+    window.location.reload();
+  }, []);
+
+  // Mise à jour automatique de la date/heure
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setLastUpdate(new Date());
+    }, 30000); // 30 secondes
+
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <div className="min-h-screen bg-[#030712] p-4 md:p-6 relative overflow-hidden">
@@ -38,15 +55,32 @@ export default function Dashboard() {
               </h1>
               <p className="text-slate-400 text-sm flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                Monitoring temps réel — Refresh: 30s
+                Dernière actualisation : {lastUpdate.toLocaleString('fr-FR', {
+                  day: '2-digit',
+                  month: '2-digit',
+                  year: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  second: '2-digit'
+                })}
               </p>
             </div>
           </div>
           
+          {/* Refresh Button */}
+          <button
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            className="flex items-center gap-2 px-3 py-2 bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 text-blue-400 rounded-lg transition-all text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <RefreshCw className={`w-4 h-4 ${isRefreshing ? "animate-spin" : ""}`} />
+            <span className="font-medium">Refresh</span>
+          </button>
+          
           {/* Quick Links */}
           <div className="flex flex-wrap gap-2">
             <a
-              href="http://100.86.54.54:8080"
+              href="/gateway"
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-2 px-3 py-2 bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 text-blue-400 rounded-lg transition-all text-sm"
@@ -56,13 +90,23 @@ export default function Dashboard() {
               <ExternalLink className="w-3 h-3" />
             </a>
             <a
-              href="https://100.86.54.54:8443"
+              href="http://100.86.54.54:8443"
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-2 px-3 py-2 bg-green-600/20 hover:bg-green-600/30 border border-green-500/30 text-green-400 rounded-lg transition-all text-sm"
             >
               <Folder className="w-4 h-4" />
               <span className="font-medium">Files</span>
+              <ExternalLink className="w-3 h-3" />
+            </a>
+            <a
+              href="/logs"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 px-3 py-2 bg-orange-600/20 hover:bg-orange-600/30 border border-orange-500/30 text-orange-400 rounded-lg transition-all text-sm"
+            >
+              <Terminal className="w-4 h-4" />
+              <span className="font-medium">Logs</span>
               <ExternalLink className="w-3 h-3" />
             </a>
             <a
@@ -111,7 +155,8 @@ export default function Dashboard() {
           <SystemMetrics />
           <ErrorsDisplay />
           <CronJobs />
-          <CpuRamChart />
+          <MessagesChart />
+          <CpuRamChart className="lg:col-span-2" />
         </div>
       )}
 
