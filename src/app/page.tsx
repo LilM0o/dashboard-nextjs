@@ -10,10 +10,9 @@ import { CronJobs } from "@/components/dashboard/cron-jobs";
 import { AgentsKpis } from "@/components/dashboard/agents-kpis";
 import { SessionsList } from "@/components/dashboard/sessions-list";
 import { CpuRamChart } from "@/components/dashboard/cpu-ram-chart";
-import { IdeasDisplay } from "@/components/dashboard/ideas-display";
-import { Activity, Zap, Folder, Server, ExternalLink, Gauge, Terminal, Lightbulb } from "lucide-react";
+import { Activity, Zap, Folder, Server, ExternalLink, Gauge, Terminal } from "lucide-react";
 
-type TabType = "system" | "ai" | "roadmap";
+type TabType = "system" | "ai";
 
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState<TabType>("system");
@@ -103,17 +102,6 @@ export default function Dashboard() {
             <Zap className="w-4 h-4" />
             🤖 AI Tools
           </button>
-          <button
-            onClick={() => setActiveTab("roadmap")}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-medium transition-all ${
-              activeTab === "roadmap"
-                ? "bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 shadow-lg shadow-yellow-500/10"
-                : "text-slate-400 hover:text-white hover:bg-slate-800/50"
-            }`}
-          >
-            <Lightbulb className="w-4 h-4" />
-            📋 Roadmap
-          </button>
         </div>
       </header>
 
@@ -134,13 +122,6 @@ export default function Dashboard() {
           <TokensChart />
           <AgentsKpis />
           <SessionsList />
-        </div>
-      )}
-
-      {/* Roadmap Tab Content */}
-      {activeTab === "roadmap" && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 animate-fade-in">
-          <IdeasDisplay />
         </div>
       )}
     </div>
