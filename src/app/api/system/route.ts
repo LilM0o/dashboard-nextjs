@@ -1,30 +1,60 @@
 import { NextResponse } from "next/server";
-import fs from "fs";
-import path from "path";
+import { exec } from "child_process";
+import { promisify } from "util";
+
+const execAsync = promisify(exec);
 
 export async function GET() {
   try {
-    const dataPath = path.join(process.cwd(), "../../workspace/dashboard/dashboard-data.json");
-    const jsonData = fs.readFileSync(dataPath, "utf-8");
-    const data = JSON.parse(jsonData);
-    
+    // Métriques système en temps réel
+    const [cpuResult, ramResult, diskResult, uptimeResult] = await Promise.all([
+      execAsync("top -bn1 | grep '%Cpu(s):' | awk '{print 100 - $8}' | cut -d'.' -f1").catch(() => ({ stdout: "0" })),
+      execAsync("free | grep Mem | awk '{printf(\"%.0f\", ($3/$2) * 100.0)}'").catch(() => ({ stdout: "0" })),
+      execAsync("df / | tail -1 | awk '{print $5}' | cut -d'%' -f1").catch(() => ({ stdout: "0" })),
+      execAsync("uptime -p").catch(() => ({ stdout: "up unknown" }))
+    ]);
+
+    const cpu = parseFloat(cpuResult.stdout) || 0;
+    const ram = parseInt(ramResult.stdout) || 0;
+    const disk = parseInt(diskResult.stdout) || 0;
+    const uptime = uptimeResult.stdout.trim().replace(/^up /, "") || "--";
+
+    // Statut OpenClaw
+    let openclawStatus = "unknown";
+    try {
+      const { stdout } = await execAsync("openclaw status --json");
+      const status = JSON.parse(stdout);
+      openclawStatus = status.status === "running" ? "online" : "offline";
+    } catch (e) {
+      openclawStatus = "offline";
+    }
+
+    // Statut Tailscale
+    let tailscaleStatus = "unknown";
+    try {
+      const { stdout } = await execAsync("tailscale status --json 2>/dev/null | head -1 | jq -r '.BackendState' 2>/dev/null || echo 'offline'");
+      tailscaleStatus = stdout.trim() || "offline";
+    } catch (e) {
+      tailscaleStatus = "disconnected";
+    }
+
     return NextResponse.json({
-      cpu: data.system?.cpu?.usage_percent ?? 0,
-      ram: data.system?.ram?.usage_percent ?? 0,
-      disk: data.system?.disk?.usage_percent ?? 0,
-      uptime: data.system?.uptime?.text ?? "--",
-      openclaw_status: data.system?.openclaw?.status ?? "unknown",
-      tailscale_status: data.system?.tailscale?.status ?? "unknown"
+      cpu,
+      ram,
+      disk,
+      uptime,
+      openclaw_status: openclawStatus,
+      tailscale_status: tailscaleStatus
     });
   } catch (error: any) {
-    // Return mock data if file not found
+    console.error("Erreur API /api/system:", error);
     return NextResponse.json({
-      cpu: Math.floor(Math.random() * 30) + 5,
-      ram: Math.floor(Math.random() * 40) + 20,
-      disk: 27,
-      uptime: "13j 20h",
-      openclaw_status: "active",
-      tailscale_status: "connected"
-    });
+      cpu: 0,
+      ram: 0,
+      disk: 0,
+      uptime: "--",
+      openclaw_status: "error",
+      tailscale_status: "error"
+    }, { status: 500 });
   }
 }
