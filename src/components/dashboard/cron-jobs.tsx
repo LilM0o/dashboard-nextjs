@@ -33,7 +33,7 @@ export function CronJobs() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center justify-between">
+        <CardTitle className="flex items-center justify-between text-white">
           <div className="flex items-center gap-2">
             <Calendar className="w-5 h-5" />
             Cron Jobs
@@ -44,15 +44,19 @@ export function CronJobs() {
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="space-y-2 max-h-48 overflow-y-auto">
+        <div className="space-y-2 max-h-96 overflow-y-auto">
           {jobs.map((job, i) => (
-            <div key={i} className="flex justify-between items-center p-2 bg-slate-900 rounded">
-              <div>
-                <span className="text-white text-sm">{job.name}</span>
-                <div className="text-xs text-slate-500">{job.schedule}</div>
+            <div 
+              key={i} 
+              className="flex justify-between items-center p-3 bg-slate-900 rounded hover:bg-slate-800 transition-all cursor-pointer"
+              title={`Cliquer pour voir les détails du job: ${job.name}`}
+            >
+              <div className="flex-1 min-w-0">
+                <span className="text-white text-sm font-medium">{job.name}</span>
+                <div className="text-xs text-slate-500 mt-0.5">{job.schedule}</div>
               </div>
               <span
-                className={`text-xs px-2 py-1 rounded ${
+                className={`text-xs px-2 py-1 rounded ml-2 shrink-0 ${
                   job.last_status === "ok"
                     ? "bg-green-900 text-green-400"
                     : job.last_status === "error"

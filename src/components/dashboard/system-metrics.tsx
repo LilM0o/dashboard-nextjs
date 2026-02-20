@@ -1,8 +1,9 @@
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Cpu, HardDrive, Activity, Clock } from "lucide-react";
+import { Cpu, HardDrive, Activity, Clock, RefreshCw } from "lucide-react";
 import useSWR from "swr";
+import { useEffect, useState } from "react";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
@@ -14,9 +15,14 @@ interface SystemData {
 }
 
 export function SystemMetrics() {
-  const { data, error, isLoading } = useSWR<SystemData>("/api/system", fetcher, {
-    refreshInterval: 30000,
+  const { data, error, isLoading } = useSWR<SystemData>("/api/system-metrics", fetcher, {
+    refreshInterval: 5000,
   });
+  const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
+
+  useEffect(() => {
+    setLastUpdate(new Date());
+  }, [data]);
 
   const cpu = data?.cpu ?? 0;
   const ram = data?.ram ?? 0;
@@ -26,7 +32,7 @@ export function SystemMetrics() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
+        <CardTitle className="flex items-center gap-2 text-white">
           <Activity className="w-5 h-5" />
           Système
         </CardTitle>
@@ -78,6 +84,12 @@ export function SystemMetrics() {
               <div className="flex items-center gap-2 text-sm">
                 <Clock className="w-4 h-4 text-slate-400" />
                 <span className="text-slate-400">Uptime: {uptime}</span>
+              </div>
+              <div className="flex items-center gap-2 text-sm mt-2">
+                <RefreshCw className="w-4 h-4 text-slate-400" />
+                <span className="text-slate-400">
+                  Mis à jour: {lastUpdate.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                </span>
               </div>
             </div>
           </div>
