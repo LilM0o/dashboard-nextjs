@@ -7,10 +7,12 @@ import { QuotasDisplay } from "@/components/dashboard/quotas-display";
 import { TokensChart } from "@/components/dashboard/tokens-chart";
 import { ErrorsDisplay } from "@/components/dashboard/errors-display";
 import { CronJobs } from "@/components/dashboard/cron-jobs";
+import { HeartbeatsDisplay } from "@/components/dashboard/heartbeats-display";
 import { AgentsKpis } from "@/components/dashboard/agents-kpis";
 import { SessionsList } from "@/components/dashboard/sessions-list";
 import { CpuRamChart } from "@/components/dashboard/cpu-ram-chart";
 import { MessagesChart } from "@/components/dashboard/messages-chart";
+import { ModelsChart } from "@/components/dashboard/models-chart";
 import { Activity, Zap, Folder, Server, ExternalLink, Gauge, Terminal, RefreshCw } from "lucide-react";
 
 type TabType = "system" | "ai";
@@ -155,6 +157,7 @@ export default function Dashboard() {
           <SystemMetrics />
           <ErrorsDisplay />
           <CronJobs />
+          <HeartbeatsDisplay />
           <MessagesChart />
           <CpuRamChart className="lg:col-span-2" />
         </div>
@@ -165,6 +168,7 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 animate-fade-in">
           <QuotasDisplay />
           <TokensChart />
+          <ModelsChart />
           <AgentsKpis />
           <SessionsList />
         </div>

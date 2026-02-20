@@ -52,14 +52,15 @@ export async function GET() {
       totalSessions++;
 
       const model = session.model || "";
-      const tokens = session.tokens || { input: 0, output: 0 };
+      // OpenClaw retourne inputTokens, outputTokens, totalTokens - attention aux null!
+      const inputTokens = session.inputTokens ?? 0;
+      const outputTokens = session.outputTokens ?? 0;
+      const totalTokens = session.totalTokens ?? (inputTokens + outputTokens);
       const provider = MODEL_TO_PROVIDER[model];
 
-      if (provider && providerTokens[provider]) {
-        providerTokens[provider].input += tokens.input || 0;
-        providerTokens[provider].output += tokens.output || 0;
-      } else {
-        console.log(`Modèle inconnu pour quotas: ${model}`);
+      if (provider && providerTokens[provider] && totalTokens > 0) {
+        providerTokens[provider].input += inputTokens;
+        providerTokens[provider].output += outputTokens;
       }
     });
 

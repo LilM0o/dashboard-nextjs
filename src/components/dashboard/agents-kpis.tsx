@@ -30,9 +30,15 @@ interface AgentsData {
     total_tokens: number;
     unique_sessions: number;
   };
-  by_tool: Array<{
+  by_agent: Array<{
     agentId: string;
     tool_name: string;
+    count: number;
+    success_rate: number;
+    avg_latency_ms: number;
+  }>;
+  by_skill: Array<{
+    skill_name: string;
     count: number;
     success_rate: number;
     avg_latency_ms: number;
@@ -50,7 +56,8 @@ export function AgentsKpis() {
   if (isLoading) return <div className="text-slate-400">Chargement...</div>;
 
   const sessions = data?.recent_sessions ?? [];
-  const byTool = data?.by_tool ?? [];
+  const byAgent = data?.by_agent ?? [];
+  const bySkill = data?.by_skill ?? [];
   const kpis = data?.kpis ?? { total_calls: 0, success_rate: 100, avg_latency_ms: 0, total_tokens: 0, unique_sessions: 0 };
 
   const successRate = Math.round(kpis.success_rate);
@@ -96,12 +103,12 @@ export function AgentsKpis() {
           </div>
         </div>
 
-        {/* Graphique agents/tools */}
+        {/* Graphique top agents */}
         <div className="mb-4">
-          <div className="text-xs text-slate-400 mb-2">Top agents/tools</div>
-          {byTool.length > 0 ? (
+          <div className="text-xs text-slate-400 mb-2">Top Agents</div>
+          {byAgent.length > 0 ? (
             <ResponsiveContainer width="100%" height={80}>
-              <BarChart data={byTool.slice(0, 5)}>
+              <BarChart data={byAgent.slice(0, 5)}>
                 <XAxis dataKey="tool_name" stroke="#64748b" fontSize={10} tickLine={false} axisLine={false} />
                 <YAxis type="number" stroke="#64748b" fontSize={10} tickLine={false} axisLine={false} width={30} tickFormatter={(v) => `${v}`} />
                 <Tooltip contentStyle={{ backgroundColor: "#1e293b", border: "1px solid #334155", borderRadius: "8px" }} labelStyle={{ color: "#fff" }} />
@@ -113,19 +120,39 @@ export function AgentsKpis() {
           )}
         </div>
 
-        {/* Liste agents/tools */}
-        <div className="space-y-2">
-          {byTool.slice(0, 5).map((tool, i) => (
-            <div key={i} className="flex items-center justify-between p-2 bg-slate-900/50 rounded">
+        {/* Liste agents */}
+        <div className="space-y-2 mb-4">
+          <div className="text-xs text-slate-400 mb-1">Sous-agents utilisés</div>
+          {byAgent.slice(0, 5).map((agent, i) => (
+            <div key={i} className="flex items-center justify-between p-2 bg-slate-900/50 rounded hover:bg-slate-800 transition-all cursor-pointer">
               <div className="flex items-center gap-2 flex-1 min-w-0">
-                <span className="text-white font-medium text-sm truncate">{tool.tool_name}</span>
+                <span className="text-white font-medium text-sm truncate">{agent.tool_name}</span>
               </div>
               <div className="flex items-center gap-3 text-xs">
-                <span className="text-cyan-400 font-mono">{tool.count}</span>
-                <span className={`text-slate-400 ${tool.success_rate >= 90 ? "text-green-400" : tool.success_rate >= 70 ? "text-yellow-400" : "text-red-400"}`}>
-                  {tool.success_rate}%
+                <span className="text-cyan-400 font-mono">{agent.count}</span>
+                <span className={`text-slate-400 ${agent.success_rate >= 90 ? "text-green-400" : agent.success_rate >= 70 ? "text-yellow-400" : "text-red-400"}`}>
+                  {agent.success_rate}%
                 </span>
-                <span className="text-slate-500">{formatLatency(tool.avg_latency_ms)}</span>
+                <span className="text-slate-500">{formatLatency(agent.avg_latency_ms)}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Liste skills */}
+        <div className="space-y-2">
+          <div className="text-xs text-slate-400 mb-1">Skills activés</div>
+          {bySkill.slice(0, 5).map((skill, i) => (
+            <div key={i} className="flex items-center justify-between p-2 bg-slate-900/50 rounded hover:bg-slate-800 transition-all cursor-pointer">
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <span className="text-white font-medium text-sm truncate">{skill.skill_name}</span>
+              </div>
+              <div className="flex items-center gap-3 text-xs">
+                <span className="text-green-400 font-mono">{skill.count}</span>
+                <span className={`text-slate-400 ${skill.success_rate >= 90 ? "text-green-400" : skill.success_rate >= 70 ? "text-yellow-400" : "text-red-400"}`}>
+                  {skill.success_rate}%
+                </span>
+                <span className="text-slate-500">{formatLatency(skill.avg_latency_ms)}</span>
               </div>
             </div>
           ))}

@@ -28,9 +28,15 @@ export async function GET() {
           tokensByDate[dateKey] = { tokens: 0, sessions: 0 };
         }
         
-        const tokens = session.totalTokens || session.totalTokensFresh || 0;
-        tokensByDate[dateKey].tokens += tokens;
-        tokensByDate[dateKey].sessions += 1;
+        // OpenClaw retourne inputTokens, outputTokens, totalTokens - attention aux null!
+        const inputTokens = session.inputTokens ?? 0;
+        const outputTokens = session.outputTokens ?? 0;
+        const tokens = session.totalTokens ?? (inputTokens + outputTokens);
+        
+        if (tokens > 0) {
+          tokensByDate[dateKey].tokens += tokens;
+          tokensByDate[dateKey].sessions += 1;
+        }
       }
     });
 

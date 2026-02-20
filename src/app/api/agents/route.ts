@@ -38,31 +38,52 @@ export async function GET() {
     const totalTokens = sessions.reduce((sum: number, s: any) => sum + (s.tokens?.total || 0), 0);
     const totalMessages = sessions.reduce((sum: number, s: any) => sum + (s.messagesCount || 0), 0);
 
-    // Agréger par tool
-    const tools: Record<string, { count: number; successRate: number; avgLatency: number; sessions: any[] }> = {};
+    // Agréger par tool (agentId) et par skills
+    const agents: Record<string, { count: number; successRate: number; avgLatency: number; sessions: any[] }> = {};
+    const skills: Record<string, { count: number; successRate: number; avgLatency: number; sessions: any[] }> = {};
 
     sessions.forEach((session: any) => {
       const agentId = session.agentId || "main";
-      if (!tools[agentId]) {
-        tools[agentId] = { count: 0, successRate: 0, avgLatency: 0, sessions: [] };
+      if (!agents[agentId]) {
+        agents[agentId] = { count: 0, successRate: 0, avgLatency: 0, sessions: [] };
       }
 
-      tools[agentId].count++;
-      tools[agentId].sessions.push(session);
-      tools[agentId].avgLatency += (session.avgLatencyMs || 0) || 0;
+      agents[agentId].count++;
+      agents[agentId].sessions.push(session);
+      agents[agentId].avgLatency += (session.avgLatencyMs || 0) || 0;
+
+      // Extraire les skills utilisés depuis la session
+      const sessionSkills = session.skills || [];
+      sessionSkills.forEach((skill: string) => {
+        if (!skills[skill]) {
+          skills[skill] = { count: 0, successRate: 0, avgLatency: 0, sessions: [] };
+        }
+        skills[skill].count++;
+        skills[skill].sessions.push(session);
+        skills[skill].avgLatency += (session.avgLatencyMs || 0) || 0;
+      });
     });
 
     // Calculer success rate par agent
-    Object.keys(tools).forEach(agentId => {
-      const tool = tools[agentId];
-      const completedSessions = tool.sessions.filter((s: any) => s.status === "completed").length;
-      const totalSessions = tool.sessions.filter((s: any) => s.status === "completed" || s.status === "active").length;
-      tool.successRate = totalSessions > 0 ? (completedSessions / totalSessions) * 100 : 100;
-      tool.avgLatency = tool.count > 0 ? Math.round(tool.avgLatency / tool.count) : 0;
+    Object.keys(agents).forEach(agentId => {
+      const agent = agents[agentId];
+      const completedSessions = agent.sessions.filter((s: any) => s.status === "completed").length;
+      const totalSessions = agent.sessions.filter((s: any) => s.status === "completed" || s.status === "active").length;
+      agent.successRate = totalSessions > 0 ? (completedSessions / totalSessions) * 100 : 100;
+      agent.avgLatency = agent.count > 0 ? Math.round(agent.avgLatency / agent.count) : 0;
     });
 
-    // Trier par nombre d'appels
-    const byTool = Object.entries(tools)
+    // Calculer success rate par skill
+    Object.keys(skills).forEach(skillName => {
+      const skill = skills[skillName];
+      const completedSessions = skill.sessions.filter((s: any) => s.status === "completed").length;
+      const totalSessions = skill.sessions.filter((s: any) => s.status === "completed" || s.status === "active").length;
+      skill.successRate = totalSessions > 0 ? (completedSessions / totalSessions) * 100 : 100;
+      skill.avgLatency = skill.count > 0 ? Math.round(skill.avgLatency / skill.count) : 0;
+    });
+
+    // Trier les agents par nombre d'appels
+    const byAgent = Object.entries(agents)
       .map(([agentId, data]) => ({
         agentId,
         tool_name: agentId,
@@ -71,7 +92,18 @@ export async function GET() {
         avg_latency_ms: data.avgLatency
       }))
       .sort((a, b) => b.count - a.count)
-      .slice(0, 10); // Top 10
+      .slice(0, 10); // Top 10 agents
+
+    // Trier les skills par nombre d'appels
+    const bySkill = Object.entries(skills)
+      .map(([skillName, data]) => ({
+        skill_name: skillName,
+        count: data.count,
+        success_rate: data.successRate,
+        avg_latency_ms: data.avgLatency
+      }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10); // Top 10 skills
 
     return NextResponse.json({
       recent_sessions: recentSessions,
@@ -81,12 +113,13 @@ export async function GET() {
       total_sessions: sessions.length,
       kpis: {
         total_calls: sessions.length,
-        success_rate: byTool.length > 0 ? Math.round(byTool.reduce((sum: number, t: any) => sum + t.success_rate, 0) / byTool.length) : 100,
-        avg_latency_ms: byTool.length > 0 ? Math.round(byTool.reduce((sum: number, t: any) => sum + t.avg_latency_ms, 0) / byTool.length) : 0,
+        success_rate: byAgent.length > 0 ? Math.round(byAgent.reduce((sum: number, a: any) => sum + a.success_rate, 0) / byAgent.length) : 100,
+        avg_latency_ms: byAgent.length > 0 ? Math.round(byAgent.reduce((sum: number, a: any) => sum + a.avg_latency_ms, 0) / byAgent.length) : 0,
         total_tokens: totalTokens,
         unique_sessions: sessions.length
       },
-      by_tool: byTool
+      by_agent: byAgent,
+      by_skill: bySkill
     });
   } catch (error: any) {
     console.error("Erreur API /api/agents:", error);

@@ -50,10 +50,10 @@ export function CpuRamChart({ className = "" }: CpuRamChartProps) {
         <CardContent>
           <div className="space-y-4">
             <div className="text-slate-400 text-sm">
-              📊 Première collecte de données en cours...
+              📊 Données disponibles : {cpuHistory.length} points
             </div>
             <div className="text-slate-500 text-xs">
-              L'historique sera disponible après 1 heure de fonctionnement
+              Minimum recommandé : 8 points pour tendance claire
             </div>
           </div>
         </CardContent>
