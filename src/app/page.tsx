@@ -13,7 +13,11 @@ import { SessionsList } from "@/components/dashboard/sessions-list";
 import { CpuRamChart } from "@/components/dashboard/cpu-ram-chart";
 import { MessagesChart } from "@/components/dashboard/messages-chart";
 import { ModelsChart } from "@/components/dashboard/models-chart";
+import { SkillsChart } from "@/components/dashboard/skills-chart";
 import { Activity, Zap, Folder, Server, ExternalLink, Gauge, Terminal, RefreshCw } from "lucide-react";
+
+// Force dynamic rendering
+export const dynamic = 'force-dynamic';
 
 type TabType = "system" | "ai";
 
@@ -27,24 +31,21 @@ export default function Dashboard() {
     window.location.reload();
   }, []);
 
-  // Mise à jour automatique de la date/heure
+  // Auto-refresh lastUpdate
   useEffect(() => {
     const interval = setInterval(() => {
       setLastUpdate(new Date());
-    }, 30000); // 30 secondes
-
+    }, 10000);
     return () => clearInterval(interval);
   }, []);
 
   return (
     <div className="min-h-screen bg-[#030712] p-4 md:p-6 relative overflow-hidden">
-      {/* Animated background */}
       <div className="fixed inset-0 pointer-events-none">
         <div className="absolute top-0 left-1/4 w-96 h-96 bg-cyan-500/5 rounded-full blur-3xl animate-pulse" />
         <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-purple-500/5 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
       </div>
 
-      {/* Header */}
       <header className="relative mb-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
@@ -57,103 +58,62 @@ export default function Dashboard() {
               </h1>
               <p className="text-slate-400 text-sm flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                Dernière actualisation : {lastUpdate.toLocaleString('fr-FR', {
-                  day: '2-digit',
-                  month: '2-digit',
-                  year: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit',
-                  second: '2-digit'
-                })}
+                Mise à jour: {lastUpdate.toLocaleString('fr-FR')}
               </p>
             </div>
           </div>
           
-          {/* Refresh Button */}
           <button
             onClick={handleRefresh}
             disabled={isRefreshing}
-            className="flex items-center gap-2 px-3 py-2 bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 text-blue-400 rounded-lg transition-all text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 px-3 py-2 bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 text-blue-400 rounded-lg transition-all text-sm"
           >
             <RefreshCw className={`w-4 h-4 ${isRefreshing ? "animate-spin" : ""}`} />
-            <span className="font-medium">Refresh</span>
+            <span className="font-medium">Actualiser</span>
           </button>
           
-          {/* Quick Links */}
           <div className="flex flex-wrap gap-2">
-            <a
-              href="http://100.86.54.54:18789"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-2 px-3 py-2 bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 text-blue-400 rounded-lg transition-all text-sm"
-            >
-              <Server className="w-4 h-4" />
-              <span className="font-medium">Gateway</span>
-              <ExternalLink className="w-3 h-3" />
+            <a href="http://100.86.54.54:18789" target="_blank" className="flex items-center gap-2 px-3 py-2 bg-blue-600/20 border border-blue-500/30 text-blue-400 rounded-lg text-sm">
+              <Server className="w-4 h-4" /> Gateway
             </a>
-            <a
-              href="http://100.86.54.54:8443"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-2 px-3 py-2 bg-green-600/20 hover:bg-green-600/30 border border-green-500/30 text-green-400 rounded-lg transition-all text-sm"
-            >
-              <Folder className="w-4 h-4" />
-              <span className="font-medium">Files</span>
-              <ExternalLink className="w-3 h-3" />
+            <a href="http://100.86.54.54:8443" target="_blank" className="flex items-center gap-2 px-3 py-2 bg-green-600/20 border border-green-500/30 text-green-400 rounded-lg text-sm">
+              <Folder className="w-4 h-4" /> Files
             </a>
-            <a
-              href="/logs"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-2 px-3 py-2 bg-orange-600/20 hover:bg-orange-600/30 border border-orange-500/30 text-orange-400 rounded-lg transition-all text-sm"
-            >
-              <Terminal className="w-4 h-4" />
-              <span className="font-medium">Logs</span>
-              <ExternalLink className="w-3 h-3" />
+            <a href="/logs" target="_blank" className="flex items-center gap-2 px-3 py-2 bg-orange-600/20 border border-orange-500/30 text-orange-400 rounded-lg text-sm">
+              <Terminal className="w-4 h-4" /> Logs
             </a>
-            <a
-              href="http://100.86.54.54:3001/dashboard.html"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-2 px-3 py-2 bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 text-purple-400 rounded-lg transition-all text-sm"
-            >
-              <Gauge className="w-4 h-4" />
-              <span className="font-medium">Mission Ctrl</span>
-              <ExternalLink className="w-3 h-3" />
+            <a href="http://100.86.54.54:3001/dashboard.html" target="_blank" className="flex items-center gap-2 px-3 py-2 bg-purple-600/20 border border-purple-500/30 text-purple-400 rounded-lg text-sm">
+              <Gauge className="w-4 h-4" /> Mission Ctrl
             </a>
           </div>
         </div>
 
-        {/* Tabs Navigation */}
         <div className="flex gap-2 mt-6 p-1 bg-slate-900/50 rounded-xl w-fit backdrop-blur-sm">
           <button
             onClick={() => setActiveTab("system")}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-medium transition-all ${
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-medium ${
               activeTab === "system"
-                ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 shadow-lg shadow-cyan-500/10"
-                : "text-slate-400 hover:text-white hover:bg-slate-800/50"
+                ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30"
+                : "text-slate-400 hover:text-white"
             }`}
           >
-            <Activity className="w-4 h-4" />
-            🖥️ Système
+            <Activity className="w-4 h-4" /> Système
           </button>
           <button
             onClick={() => setActiveTab("ai")}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-medium transition-all ${
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-medium ${
               activeTab === "ai"
-                ? "bg-purple-500/20 text-purple-400 border border-purple-500/30 shadow-lg shadow-purple-500/10"
-                : "text-slate-400 hover:text-white hover:bg-slate-800/50"
+                ? "bg-purple-500/20 text-purple-400 border border-purple-500/30"
+                : "text-slate-400 hover:text-white"
             }`}
           >
-            <Zap className="w-4 h-4" />
-            🤖 AI Tools
+            <Zap className="w-4 h-4" /> AI Tools
           </button>
         </div>
       </header>
 
-      {/* System Tab Content */}
       {activeTab === "system" && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 animate-fade-in">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <SystemMetrics />
           <ErrorsDisplay />
           <CronJobs />
@@ -163,11 +123,11 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* AI Tools Tab Content */}
       {activeTab === "ai" && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 animate-fade-in">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <QuotasDisplay />
           <TokensChart />
+          <SkillsChart />
           <ModelsChart />
           <AgentsKpis />
           <SessionsList />

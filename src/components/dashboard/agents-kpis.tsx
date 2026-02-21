@@ -1,24 +1,27 @@
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Zap, TrendingUp, MessageSquare, Clock } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
-import useSWR from "swr";
-import { useState } from "react";
+import { Users, Zap, Clock, TrendingUp } from "lucide-react";
+import { useEffect, useState } from "react";
 
-const fetcher = (url: string) => fetch(url).then((res) => res.json());
+interface AgentData {
+  agentId: string;
+  tool_name: string;
+  count: number;
+  success_rate: number;
+  avg_latency_ms: number;
+}
 
-interface AgentsData {
-  recent_sessions: Array<{
-    id: string;
-    name: string;
-    agentId: string;
-    status: string;
-    lastActivity: string;
-    tokens: { total: number };
-    model: string;
-    messagesCount: number;
-  }>;
+interface SkillData {
+  source: string;
+  tool_name: string;
+  count: number;
+  success_rate: number;
+  avg_latency_ms: number;
+}
+
+interface KpisData {
+  recent_sessions: any[];
   active_count: number;
   total_tokens: number;
   total_messages: number;
@@ -30,133 +33,114 @@ interface AgentsData {
     total_tokens: number;
     unique_sessions: number;
   };
-  by_agent: Array<{
-    agentId: string;
-    tool_name: string;
-    count: number;
-    success_rate: number;
-    avg_latency_ms: number;
-  }>;
-  by_skill: Array<{
-    skill_name: string;
-    count: number;
-    success_rate: number;
-    avg_latency_ms: number;
-  }>;
+  by_agent: AgentData[];
+  by_skill: SkillData[];
 }
 
 export function AgentsKpis() {
-  const { data, error, isLoading } = useSWR<AgentsData>("/api/agents", fetcher, {
-    refreshInterval: 60000,
-  });
+  const [data, setData] = useState<KpisData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const [showSessions, setShowSessions] = useState(false);
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const response = await fetch('/api/agents');
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const result: KpisData = await response.json();
+        setData(result);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Erreur inconnue');
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  if (error) return <div className="text-red-400">Erreur chargement</div>;
-  if (isLoading) return <div className="text-slate-400">Chargement...</div>;
+    fetchData();
 
-  const sessions = data?.recent_sessions ?? [];
-  const byAgent = data?.by_agent ?? [];
-  const bySkill = data?.by_skill ?? [];
-  const kpis = data?.kpis ?? { total_calls: 0, success_rate: 100, avg_latency_ms: 0, total_tokens: 0, unique_sessions: 0 };
+    const interval = setInterval(fetchData, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
-  const successRate = Math.round(kpis.success_rate);
-  const activeCount = data?.active_count ?? 0;
-  const totalTokens = kpis.total_tokens ?? 0;
-  const avgLatency = kpis.avg_latency_ms ?? 0;
-
-  const formatLatency = (ms: number) => ms > 1000 ? `${(ms / 1000).toFixed(1)}s` : `${ms}ms`;
-  const formatTokens = (tokens: number) => {
-    if (tokens >= 1000000) return `${(tokens / 1000000).toFixed(1)}M`;
-    if (tokens >= 1000) return `${(tokens / 1000).toFixed(1)}k`;
-    return tokens.toString();
+  const formatLatency = (ms: number) => {
+    if (ms >= 1000) return `${(ms / 1000).toFixed(1)}s`;
+    if (ms >= 1) return `${ms.toFixed(0)}ms`;
+    return `${(ms * 1000).toFixed(0)}μs`;
   };
 
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-white">
-          <Zap className="w-5 h-5" />
+          <Users className="w-5 h-5 text-cyan-400" />
           Agents KPIs
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-2 gap-3 mb-4">
-          <div className="text-center p-2 bg-slate-900 rounded cursor-pointer hover:bg-slate-800 transition-all" onClick={() => setShowSessions(true)}>
-            <div className="text-xl font-bold text-white">{data?.total_sessions ?? 0}</div>
-            <div className="text-xs text-slate-400">Sessions totales</div>
-          </div>
-          <div className="text-center p-2 bg-slate-900 rounded cursor-pointer hover:bg-slate-800 transition-all" onClick={() => setShowSessions(true)}>
-            <div className="text-xl font-bold text-white">{successRate}%</div>
-            <div className="text-xs text-slate-400">Succès</div>
-            <div className={`text-xs ${successRate > 90 ? "text-green-400" : successRate > 70 ? "text-yellow-400" : "text-red-400"}`}>
-              {successRate > 90 ? "✓ Excellent" : successRate > 70 ? "⚠️ Bon" : "✗ Attention"}
-            </div>
-          </div>
-          <div className="text-center p-2 bg-slate-900 rounded">
-            <div className="text-xl font-bold text-blue-400">{avgLatency}ms</div>
-            <div className="text-xs text-slate-400">Latence moy.</div>
-          </div>
-          <div className="text-center p-2 bg-slate-900 rounded">
-            <div className="text-xl font-bold text-purple-400">{formatTokens(totalTokens)}</div>
-            <div className="text-xs text-slate-400">Tokens</div>
-          </div>
-        </div>
-
-        {/* Graphique top agents */}
-        <div className="mb-4">
-          <div className="text-xs text-slate-400 mb-2">Top Agents</div>
-          {byAgent.length > 0 ? (
-            <ResponsiveContainer width="100%" height={80}>
-              <BarChart data={byAgent.slice(0, 5)}>
-                <XAxis dataKey="tool_name" stroke="#64748b" fontSize={10} tickLine={false} axisLine={false} />
-                <YAxis type="number" stroke="#64748b" fontSize={10} tickLine={false} axisLine={false} width={30} tickFormatter={(v) => `${v}`} />
-                <Tooltip contentStyle={{ backgroundColor: "#1e293b", border: "1px solid #334155", borderRadius: "8px" }} labelStyle={{ color: "#fff" }} />
-                <Bar dataKey="count" fill="#a855f7" radius={[4, 4, 0, 0]} maxBarSize={20} />
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="text-center text-slate-400 text-sm py-2">Aucune donnée</div>
-          )}
-        </div>
-
-        {/* Liste agents */}
-        <div className="space-y-2 mb-4">
-          <div className="text-xs text-slate-400 mb-1">Sous-agents utilisés</div>
-          {byAgent.slice(0, 5).map((agent, i) => (
-            <div key={i} className="flex items-center justify-between p-2 bg-slate-900/50 rounded hover:bg-slate-800 transition-all cursor-pointer">
-              <div className="flex items-center gap-2 flex-1 min-w-0">
-                <span className="text-white font-medium text-sm truncate">{agent.tool_name}</span>
+        {error ? (
+          <div className="text-red-400">{error}</div>
+        ) : loading ? (
+          <div className="text-slate-400">Chargement...</div>
+        ) : (
+          <>
+            {/* Global Stats */}
+            <div className="space-y-3 mb-4">
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-slate-400">Appels totaux</span>
+                <span className="text-white font-bold text-lg">{data?.kpis?.total_calls ?? 0}</span>
               </div>
-              <div className="flex items-center gap-3 text-xs">
-                <span className="text-cyan-400 font-mono">{agent.count}</span>
-                <span className={`text-slate-400 ${agent.success_rate >= 90 ? "text-green-400" : agent.success_rate >= 70 ? "text-yellow-400" : "text-red-400"}`}>
-                  {agent.success_rate}%
-                </span>
-                <span className="text-slate-500">{formatLatency(agent.avg_latency_ms)}</span>
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-slate-400">Taux de succès</span>
+                <span className="text-green-400 font-bold text-lg">{data?.kpis?.success_rate ?? 0}%</span>
+              </div>
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-slate-400">Latence moyenne</span>
+                <span className="text-white font-bold text-lg">{formatLatency(data?.kpis?.avg_latency_ms ?? 0)}</span>
+              </div>
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-slate-400">Sessions uniques</span>
+                <span className="text-white font-bold text-lg">{data?.kpis?.unique_sessions ?? 0}</span>
               </div>
             </div>
-          ))}
-        </div>
 
-        {/* Liste skills */}
-        <div className="space-y-2">
-          <div className="text-xs text-slate-400 mb-1">Skills activés</div>
-          {bySkill.slice(0, 5).map((skill, i) => (
-            <div key={i} className="flex items-center justify-between p-2 bg-slate-900/50 rounded hover:bg-slate-800 transition-all cursor-pointer">
-              <div className="flex items-center gap-2 flex-1 min-w-0">
-                <span className="text-white font-medium text-sm truncate">{skill.skill_name}</span>
+            {/* By Agent */}
+            {data?.by_agent && data.by_agent.length > 0 && (
+              <div className="mb-4">
+                <div className="text-sm text-slate-400 mb-2">Par agent:</div>
+                <div className="space-y-1">
+                  {data.by_agent.map((agent, idx) => (
+                    <div key={idx} className="flex justify-between items-center text-xs p-2 rounded bg-slate-800">
+                      <span className="text-slate-300">{agent.tool_name}</span>
+                      <span className="text-white">({agent.count} calls)</span>
+                      <span className="text-green-400">{agent.success_rate}%</span>
+                      <span className="text-slate-300">{formatLatency(agent.avg_latency_ms)}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div className="flex items-center gap-3 text-xs">
-                <span className="text-green-400 font-mono">{skill.count}</span>
-                <span className={`text-slate-400 ${skill.success_rate >= 90 ? "text-green-400" : skill.success_rate >= 70 ? "text-yellow-400" : "text-red-400"}`}>
-                  {skill.success_rate}%
-                </span>
-                <span className="text-slate-500">{formatLatency(skill.avg_latency_ms)}</span>
+            )}
+
+            {/* By Skill */}
+            {data?.by_skill && data.by_skill.length > 0 && (
+              <div>
+                <div className="text-sm text-slate-400 mb-2">Par skill:</div>
+                <div className="space-y-1">
+                  {data.by_skill.slice(0, 3).map((skill, idx) => (
+                    <div key={idx} className="flex justify-between items-center text-xs p-2 rounded bg-slate-800">
+                      <span className="text-slate-300">{skill.tool_name}</span>
+                      <span className="text-white">({skill.count} calls)</span>
+                      <span className="text-green-400">{skill.success_rate}%</span>
+                      <span className="text-slate-300">{formatLatency(skill.avg_latency_ms)}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            )}
+          </>
+        )}
       </CardContent>
     </Card>
   );

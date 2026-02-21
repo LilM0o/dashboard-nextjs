@@ -2,10 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Cpu, HardDrive, Activity, Clock, RefreshCw } from "lucide-react";
-import useSWR from "swr";
 import { useEffect, useState } from "react";
-
-const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 interface SystemData {
   cpu?: number;
@@ -15,14 +12,36 @@ interface SystemData {
 }
 
 export function SystemMetrics() {
-  const { data, error, isLoading } = useSWR<SystemData>("/api/system-metrics", fetcher, {
-    refreshInterval: 5000,
-  });
+  const [data, setData] = useState<SystemData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
 
+  // Fetch data server-side
   useEffect(() => {
-    setLastUpdate(new Date());
-  }, [data]);
+    const fetchData = async () => {
+      try {
+        const response = await fetch('/api/system-metrics');
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const result: SystemData = await response.json();
+        setData(result);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Erreur inconnue');
+      } finally {
+        setLoading(false);
+        setLastUpdate(new Date());
+      }
+    };
+
+    fetchData();
+
+    // Refresh every 5 seconds
+    const interval = setInterval(fetchData, 5000);
+    return () => clearInterval(interval);
+  }, []);
 
   const cpu = data?.cpu ?? 0;
   const ram = data?.ram ?? 0;
@@ -39,8 +58,8 @@ export function SystemMetrics() {
       </CardHeader>
       <CardContent>
         {error ? (
-          <div className="text-red-400">Erreur chargement</div>
-        ) : isLoading ? (
+          <div className="text-red-400">{error}</div>
+        ) : loading ? (
           <div className="text-slate-400">Chargement...</div>
         ) : (
           <div className="space-y-4">

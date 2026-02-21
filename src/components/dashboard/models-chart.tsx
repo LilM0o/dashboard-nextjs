@@ -1,13 +1,9 @@
-"use client";
-
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
-import { Zap, TrendingUp, Cpu } from "lucide-react";
-import useSWR from "swr";
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis } from "recharts";
+import { Brain, Clock } from "lucide-react";
+import { useEffect, useState } from "react";
 
-const fetcher = (url: string) => fetch(url).then((res) => res.json());
-
-interface ModelUsage {
+interface ModelData {
   model: string;
   input_tokens: number;
   output_tokens: number;
@@ -16,117 +12,160 @@ interface ModelUsage {
 }
 
 interface ModelsData {
-  models: ModelUsage[];
-  total_tokens: number;
-  total_sessions: number;
+  models: ModelData[];
 }
 
+const COLORS = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+
 export function ModelsChart() {
-  const { data, error, isLoading } = useSWR<ModelsData>("/api/models-usage", fetcher, {
-    refreshInterval: 60000,
-  });
+  const [data, setData] = useState<ModelsData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  if (error) return <div className="text-red-400">Erreur chargement</div>;
-  if (isLoading) return <div className="text-slate-400">Chargement...</div>;
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const response = await fetch('/api/models-usage');
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const result: ModelsData = await response.json();
+        setData(result);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Erreur inconnue');
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const models = data?.models ?? [];
-  const chartData = models.map(m => ({
-    model: m.model,
-    tokens: m.total_tokens,
-    sessions: m.count
-  }));
+    fetchData();
 
-  const formatTokens = (tokens: number) => {
-    if (tokens >= 1000000) return `${(tokens / 1000000).toFixed(1)}M`;
-    if (tokens >= 1000) return `${(tokens / 1000).toFixed(0)}k`;
-    return tokens.toString();
+    const interval = setInterval(fetchData, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const chartData = data?.models?.map(m => ({
+    name: m.model,
+    value: m.total_tokens
+  })) ?? [];
+
+  const renderLabel = (entry: any) => {
+    return `${entry.name}: ${entry.value}`;
+  };
+
+  const renderCustomizedLabel = (entry: any) => {
+    const percentage = (entry.value / 1000000 * 100).toFixed(1);
+    return `${entry.name} (${percentage}%)`;
   };
 
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-white">
-          <Zap className="w-5 h-5 text-yellow-400" />
-          Modèles IA Utilisés
+          <Brain className="w-5 h-5 text-purple-400" />
+          Utilisation Modèles
         </CardTitle>
       </CardHeader>
       <CardContent>
-        {models.length === 0 ? (
-          <div className="text-center text-slate-400 py-4">
-            Aucune donnée de modèles disponible
-          </div>
+        {error ? (
+          <div className="text-red-400">{error}</div>
+        ) : loading ? (
+          <div className="text-slate-400">Chargement...</div>
         ) : (
           <>
-            {/* KPIs */}
-            <div className="grid grid-cols-3 gap-2 mb-4">
-              <div className="text-center p-2 rounded bg-slate-900/50">
-                <div className="text-xs text-slate-400">Total Tokens</div>
-                <div className="text-white font-bold text-lg">{formatTokens(data?.total_tokens ?? 0)}</div>
-              </div>
-              <div className="text-center p-2 rounded bg-slate-900/50">
-                <div className="text-xs text-slate-400">Sessions</div>
-                <div className="text-cyan-400 font-bold text-lg">{data?.total_sessions ?? 0}</div>
-              </div>
-            </div>
-
-            {/* Graphique */}
+            {/* Pie Chart */}
             {chartData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={120}>
+              <ResponsiveContainer width="100%" height={200}>
+                <PieChart>
+                  <Pie
+                    data={chartData}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={renderLabel}
+                    outerRadius={80}
+                    innerRadius={40}
+                    paddingAngle={5}
+                  >
+                    {chartData.map((entry, index) => (
+                      <Cell 
+                        key={`cell-${index}`} 
+                        fill={COLORS[index % COLORS.length]} 
+                        name={entry.name}
+                      />
+                    ))}
+                  </Pie>
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: "#1e293b", 
+                      border: "1px solid #334155", 
+                      borderRadius: "8px" 
+                    }}
+                    formatter={(value: any) => `${value} tokens`}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="text-center text-slate-400 py-4">
+                Aucune donnée disponible
+              </div>
+            )}
+
+            {/* Bar Chart for Input/Output */}
+            {chartData.length > 0 && (
+              <ResponsiveContainer width="100%" height={150}>
                 <BarChart data={chartData.slice(0, 5)}>
                   <XAxis 
-                    dataKey="model" 
+                    dataKey="name" 
                     stroke="#64748b" 
-                    fontSize={11} 
+                    fontSize={11}
                     tickLine={false}
                     axisLine={false}
-                    interval="preserveStartEnd"
                   />
-                  <YAxis
-                    stroke="#64748b"
+                  <YAxis 
+                    stroke="#64748b" 
                     fontSize={11}
-                    tickFormatter={(v) => formatTokens(v)}
+                    tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
                     tickLine={false}
                     axisLine={false}
                     width={40}
                   />
-                  <Tooltip
+                  <Tooltip 
                     contentStyle={{ 
                       backgroundColor: "#1e293b", 
                       border: "1px solid #334155", 
                       borderRadius: "8px" 
                     }}
                     labelStyle={{ color: "#fff" }}
-                    formatter={(value: any) => [formatTokens(typeof value === 'number' ? value : Number(value)), "tokens"]}
+                    formatter={(value: any) => `${value} tokens`}
                   />
                   <Bar 
-                    dataKey="tokens" 
+                    dataKey="value" 
                     fill="#3b82f6" 
                     radius={[4, 4, 0, 0]}
-                    maxBarSize={30}
                   />
                 </BarChart>
               </ResponsiveContainer>
-            ) : (
-              <div className="text-center text-slate-400 py-4">
-                Aucune donnée de modèles
-              </div>
             )}
 
-            {/* Liste des modèles */}
-            <div className="space-y-2 mt-3">
-              {models.slice(0, 5).map((model, i) => (
-                <div key={i} className="flex items-center justify-between p-2 bg-slate-900/50 rounded">
-                  <div className="flex-1 min-w-0">
-                    <span className="text-white font-medium text-sm truncate">{model.model}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-xs">
-                    <span className="text-cyan-400 font-mono">{model.count}</span>
-                    <span className="text-slate-400">-</span>
-                    <span className="text-white">{formatTokens(model.total_tokens)}</span>
-                  </div>
+            {/* Legend */}
+            {chartData.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-slate-700 text-xs">
+                <div className="text-slate-400 mb-2">Top modèles par tokens:</div>
+                <div className="space-y-1">
+                  {data?.models
+                    .sort((a, b) => b.total_tokens - a.total_tokens)
+                    .slice(0, 3)
+                    .map((m, idx) => (
+                      <div key={idx} className="flex justify-between items-center text-slate-300">
+                        <span>{m.model}</span>
+                        <span className="font-mono">{(m.total_tokens / 1000).toFixed(0)}k</span>
+                      </div>
+                    ))}
                 </div>
-              ))}
-            </div>
+              </div>
+            )}
           </>
         )}
       </CardContent>

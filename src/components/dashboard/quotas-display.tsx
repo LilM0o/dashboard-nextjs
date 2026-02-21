@@ -1,13 +1,10 @@
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Zap, RefreshCw, DollarSign, Cpu } from "lucide-react";
-import useSWR from "swr";
+import { DollarSign, TrendingUp, AlertTriangle, CheckCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 
-const fetcher = (url: string) => fetch(url).then((res) => res.json());
-
-interface Quota {
+interface ProviderQuota {
   provider: string;
   model: string;
   tokens_input: number;
@@ -16,134 +13,150 @@ interface Quota {
   cost_estimated: number;
   budget_monthly: number;
   percent_used: number;
-  status: "ok" | "warning" | "critical";
+  status: string;
 }
 
 interface QuotasData {
-  quotas: Quota[];
-  total_sessions: number;
-  generated_at: string;
+  quotas: ProviderQuota[];
 }
 
 export function QuotasDisplay() {
-  const { data, error, isLoading } = useSWR<QuotasData>("/api/quotas", fetcher, {
-    refreshInterval: 60000,
-  });
-  const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
+  const [data, setData] = useState<QuotasData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setLastUpdate(new Date());
-  }, [data]);
+    const fetchData = async () => {
+      try {
+        const response = await fetch('/api/quotas');
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const result: QuotasData = await response.json();
+        setData(result);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Erreur inconnue');
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  if (error) return <div className="text-red-400">Erreur chargement</div>;
-  if (isLoading) return <div className="text-slate-400">Chargement...</div>;
+    fetchData();
 
-  const quotas = data?.quotas ?? [];
+    const interval = setInterval(fetchData, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
-  const formatTokens = (tokens: number) => {
-    if (tokens >= 1000000) return `${(tokens / 1000000).toFixed(2)}M`;
-    if (tokens >= 1000) return `${(tokens / 1000).toFixed(1)}k`;
-    return tokens.toString();
+  const getProviderColor = (provider: string) => {
+    const colors: Record<string, string> = {
+      'zai': 'text-cyan-400',
+      'minimax': 'text-purple-400',
+      'openrouter': 'text-green-400',
+      'anthropic': 'text-orange-400',
+    };
+    return colors[provider] || 'text-white';
   };
 
-  const getBarColor = (status: string) => {
-    switch (status) {
-      case "critical": return "bg-red-500";
-      case "warning": return "bg-yellow-500";
-      default: return "bg-green-500";
+  const getStatusIcon = (status: string) => {
+    if (status === 'ok' || status === 'warning') {
+      return <CheckCircle className="w-4 h-4 text-green-400" />;
     }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "critical": return "text-red-400";
-      case "warning": return "text-yellow-400";
-      default: return "text-green-400";
-    }
-  };
-
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case "critical": return "🔴";
-      case "warning": return "🟡";
-      default: return "🟢";
-    }
+    return <AlertTriangle className="w-4 h-4 text-orange-400" />;
   };
 
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-white">
-          <Zap className="w-5 h-5 text-yellow-400" />
+          <DollarSign className="w-5 h-5 text-green-400" />
           Quotas API
         </CardTitle>
       </CardHeader>
       <CardContent>
-        {quotas.length === 0 ? (
-          <div className="text-center text-slate-400 py-4">
-            Aucune donnée de quota disponible
-          </div>
+        {error ? (
+          <div className="text-red-400">{error}</div>
+        ) : loading ? (
+          <div className="text-slate-400">Chargement...</div>
         ) : (
-          <div className="space-y-4">
-            {quotas.map((quota) => (
-              <div key={quota.provider} className="space-y-2">
-                {/* Provider + Model */}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-white font-medium capitalize">{quota.provider}</span>
-                    <span className="text-xs text-slate-500 font-mono">{quota.model}</span>
-                  </div>
-                  <span className={getStatusColor(quota.status)}>
-                    {getStatusLabel(quota.status)} {quota.percent_used}%
-                  </span>
-                </div>
+          <>
+            {data?.quotas && data.quotas.length > 0 ? (
+              <div className="space-y-3">
+                {data.quotas.map((quota, idx) => (
+                  <div key={idx} className="p-3 rounded border border-slate-700">
+                    <div className="flex justify-between items-center mb-2">
+                      <div className="flex items-center gap-2">
+                        {getStatusIcon(quota.status)}
+                        <div>
+                          <div className={`text-sm font-semibold ${getProviderColor(quota.provider)}`}>
+                            {quota.provider}
+                          </div>
+                          <div className="text-xs text-slate-400">
+                            {quota.model}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-xs text-slate-400 mb-1">
+                          {(quota.percent_used || 0).toFixed(0)}% du budget
+                        </div>
+                        <div className="text-lg font-bold text-white">
+                          ${(quota.cost_estimated || 0).toFixed(2)}$
+                        </div>
+                      </div>
+                    </div>
 
-                {/* Barre de progression */}
-                <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all ${getBarColor(quota.status)}`}
-                    style={{ width: `${Math.min(quota.percent_used, 100)}%` }}
-                  />
-                </div>
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-400">Budget mensuel</span>
+                        <span className="text-white font-semibold">
+                          ${(quota.budget_monthly || 0).toFixed(2)}$
+                        </span>
+                      </div>
 
-                {/* Métriques détaillées */}
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div className="flex items-center gap-1.5 text-slate-400">
-                    <Cpu className="w-3 h-3" />
-                    <span>{formatTokens(quota.total_tokens)} tokens</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 text-slate-400">
-                    <DollarSign className="w-3 h-3" />
-                    <span className="text-white">
-                      ${quota.cost_estimated} / ${quota.budget_monthly}
-                    </span>
-                  </div>
-                </div>
+                      <div className="w-full">
+                        <div className="flex justify-between text-sm mb-1">
+                          <span className="text-slate-400">Utilisation</span>
+                          <span className="text-white">{quota.total_tokens?.toLocaleString() || 0}</span>
+                        </div>
+                        <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
+                          <div
+                            className={`h-2 rounded-full transition-all ${
+                              quota.percent_used || 0 > 80
+                                ? 'bg-red-500'
+                                : quota.percent_used || 0 > 60
+                                ? 'bg-orange-500'
+                                : quota.percent_used || 0 > 40
+                                ? 'bg-yellow-500'
+                                : 'bg-green-500'
+                            }`}
+                            style={{ width: `${quota.percent_used || 0}%` }}
+                          />
+                        </div>
+                      </div>
 
-                {/* Détail Input/Output (expansible) */}
-                <div className="text-xs text-slate-500 space-y-0.5">
-                  <div className="flex justify-between">
-                    <span>Input:</span>
-                    <span className="text-white">{formatTokens(quota.tokens_input)}</span>
+                      {quota.percent_used && quota.percent_used > 80 && (
+                        <div className="flex items-center gap-1 text-xs text-red-400 mt-2">
+                          <TrendingUp className="w-3 h-3" />
+                          <span>Attention: quota proche de la limite</span>
+                        </div>
+                      )}
+
+                      {quota.percent_used && quota.percent_used > 60 && quota.percent_used <= 80 && (
+                        <div className="text-xs text-slate-400 mt-2">
+                          Tokens input: {quota.tokens_input?.toLocaleString() || 0} | output: {quota.tokens_output?.toLocaleString() || 0}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex justify-between">
-                    <span>Output:</span>
-                    <span className="text-white">{formatTokens(quota.tokens_output)}</span>
-                  </div>
-                </div>
+                ))}
               </div>
-            ))}
-
-            {/* Footer */}
-            <div className="pt-3 border-t border-slate-700">
-              <div className="flex items-center gap-2 text-xs">
-                <RefreshCw className="w-3 h-3 text-slate-400" />
-                <span className="text-slate-400">
-                  Mis à jour: {lastUpdate.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
-                </span>
+            ) : (
+              <div className="text-center text-slate-400 py-4">
+                Aucune donnée de quota disponible
               </div>
-            </div>
-          </div>
+            )}
+          </>
         )}
       </CardContent>
     </Card>

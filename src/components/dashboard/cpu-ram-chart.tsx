@@ -1,20 +1,14 @@
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Cpu, Activity, RefreshCw } from "lucide-react";
-import useSWR from "swr";
+import { Cpu, HardDrive, Activity } from "lucide-react";
 import { useEffect, useState } from "react";
 
-const fetcher = (url: string) => fetch(url).then((res) => res.json());
-
-interface HistoryPoint {
-  timestamp: number;
-  value: number;
-}
-
-interface HistoryData {
-  cpuHistory?: HistoryPoint[];
-  ramHistory?: HistoryPoint[];
+interface SystemData {
+  cpu?: number;
+  ram?: number;
+  disk?: number;
+  uptime?: string;
 }
 
 interface CpuRamChartProps {
@@ -22,213 +16,124 @@ interface CpuRamChartProps {
 }
 
 export function CpuRamChart({ className = "" }: CpuRamChartProps) {
-  const { data, error, isLoading } = useSWR<HistoryData>("/api/history", fetcher, {
-    refreshInterval: 60000, //1 minute
-  });
-  const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
+  const [data, setData] = useState<SystemData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setLastUpdate(new Date());
-  }, [data]);
+    const fetchData = async () => {
+      try {
+        const response = await fetch('/api/system-metrics');
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const result: SystemData = await response.json();
+        setData(result);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Erreur inconnue');
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  if (error) return <div className="text-red-400">Erreur chargement</div>;
-  if (isLoading) return <div className="text-slate-400">Chargement...</div>;
+    fetchData();
 
-  const cpuHistory = data?.cpuHistory ?? [];
-  const ramHistory = data?.ramHistory ?? [];
-
-  // Afficher le graphique même avec peu de données, ou un placeholder initial
-  if (cpuHistory.length === 0) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-white">
-            <Cpu className="w-5 h-5 text-blue-400" />
-            Évolution Système (24h)
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="text-slate-400 text-sm">
-              📊 Données disponibles : {cpuHistory.length} points
-            </div>
-            <div className="text-slate-500 text-xs">
-              Minimum recommandé : 8 points pour tendance claire
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  const barWidth = 100 / cpuHistory.length;
-
-  const getCpuColor = (value: number) => {
-    if (value < 30) return "bg-green-500";
-    if (value < 70) return "bg-orange-500";
-    return "bg-red-500";
-  };
-
-  const getRamColor = (value: number) => {
-    if (value < 50) return "bg-green-500";
-    if (value < 80) return "bg-orange-500";
-    return "bg-red-500";
-  };
-
-  const formatTime = (timestamp: number) => {
-    const date = new Date(timestamp * 1000);
-    return date.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
-  };
-
-  const startTime = formatTime(cpuHistory[0].timestamp);
-  const endTime = formatTime(cpuHistory[cpuHistory.length - 1].timestamp);
-
-  const avgCpu = Math.round(cpuHistory.reduce((sum, p) => sum + p.value, 0) / cpuHistory.length);
-  const avgRam = Math.round(ramHistory.reduce((sum, p) => sum + p.value, 0) / ramHistory.length);
-
-  const maxCpu = Math.max(...cpuHistory.map(p => p.value));
-  const maxRam = Math.max(...ramHistory.map(p => p.value));
+    const interval = setInterval(fetchData, 5000);
+    return () => clearInterval(interval);
+  }, []);
 
   return (
-    <Card className={className || "lg:col-span-2"}>
+    <Card className={className}>
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-white">
           <Cpu className="w-5 h-5 text-blue-400" />
-          Évolution Système (24h)
+          Ressources Système
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="space-y-6">
-          {/* CPU Chart */}
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <Cpu className="w-4 h-4 text-blue-400" />
-                <span className="text-sm font-medium text-white">CPU</span>
+        {error ? (
+          <div className="text-red-400">{error}</div>
+        ) : loading ? (
+          <div className="text-slate-400">Chargement...</div>
+        ) : (
+          <div className="space-y-4">
+            {/* CPU */}
+            <div>
+              <div className="flex justify-between items-center mb-2">
+                <div className="flex items-center gap-2">
+                  <Cpu className="w-4 h-4 text-blue-400" />
+                  <span className="text-sm text-slate-300">CPU</span>
+                </div>
+                <span className="text-white font-bold">{data?.cpu ?? 0}%</span>
               </div>
-              <div className="flex items-center gap-3">
-                <span className="text-xs text-slate-400">
-                  Max: <span className="text-white font-semibold">{maxCpu}%</span>
-                </span>
-                <span className="text-xs text-slate-400">
-                  Avg: <span className="text-white font-semibold">{avgCpu}%</span>
-                </span>
-              </div>
-            </div>
-            <div className="relative h-32 border-l border-b border-slate-700 p-3">
-              {/* Grid lines */}
-              <div className="absolute inset-0 pointer-events-none">
-                <div className="absolute top-0 left-0 right-0 border-t border-slate-700/50" />
-                <div className="absolute top-1/4 left-0 right-0 border-t border-slate-700/50" />
-                <div className="absolute top-2/4 left-0 right-0 border-t border-slate-700/50" />
-                <div className="absolute top-3/4 left-0 right-0 border-t border-slate-700/50" />
-              </div>
-              {/* Bars */}
-              <div className="relative h-full flex items-end gap-0.5">
-                {cpuHistory.map((point, index) => {
-                  const height = Math.max(point.value, 3);
-                  const color = getCpuColor(point.value);
-                  return (
-                    <div
-                      key={index}
-                      className="flex-1 rounded-t-sm transition-all hover:opacity-70"
-                      style={{
-                        height: `${height}%`,
-                        width: `${barWidth}%`,
-                        minWidth: "6px",
-                        maxWidth: "20px"
-                      }}
-                      title={`${formatTime(point.timestamp)}: ${point.value}%`}
-                    >
-                      <div
-                        className={`w-full h-full rounded-t-sm ${color}`}
-                      />
-                    </div>
-                  );
-                })}
+              <div className="h-3 bg-slate-700 rounded-full overflow-hidden">
+                <div
+                  className={`h-3 rounded-full transition-all ${
+                    (data?.cpu ?? 0) > 80 ? 'bg-red-500' :
+                    (data?.cpu ?? 0) > 60 ? 'bg-orange-500' :
+                    (data?.cpu ?? 0) > 40 ? 'bg-yellow-500' :
+                    'bg-blue-500'
+                  }`}
+                  style={{ width: `${Math.min(data?.cpu ?? 0, 100)}%` }}
+                />
               </div>
             </div>
-          </div>
 
-          {/* RAM Chart */}
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <Activity className="w-4 h-4 text-purple-400" />
-                <span className="text-sm font-medium text-white">RAM</span>
+            {/* RAM */}
+            <div>
+              <div className="flex justify-between items-center mb-2">
+                <div className="flex items-center gap-2">
+                  <HardDrive className="w-4 h-4 text-purple-400" />
+                  <span className="text-sm text-slate-300">RAM</span>
+                </div>
+                <span className="text-white font-bold">{data?.ram ?? 0}%</span>
               </div>
-              <div className="flex items-center gap-3">
-                <span className="text-xs text-slate-400">
-                  Max: <span className="text-white font-semibold">{maxRam}%</span>
-                </span>
-                <span className="text-xs text-slate-400">
-                  Avg: <span className="text-white font-semibold">{avgRam}%</span>
-                </span>
-              </div>
-            </div>
-            <div className="relative h-32 border-l border-b border-slate-700 p-3">
-              {/* Grid lines */}
-              <div className="absolute inset-0 pointer-events-none">
-                <div className="absolute top-0 left-0 right-0 border-t border-slate-700/50" />
-                <div className="absolute top-1/4 left-0 right-0 border-t border-slate-700/50" />
-                <div className="absolute top-2/4 left-0 right-0 border-t border-slate-700/50" />
-                <div className="absolute top-3/4 left-0 right-0 border-t border-slate-700/50" />
-              </div>
-              {/* Bars */}
-              <div className="relative h-full flex items-end gap-0.5">
-                {ramHistory.map((point, index) => {
-                  const height = Math.max(point.value, 3);
-                  const color = getRamColor(point.value);
-                  return (
-                    <div
-                      key={index}
-                      className="flex-1 rounded-t-sm transition-all hover:opacity-70"
-                      style={{
-                        height: `${height}%`,
-                        width: `${barWidth}%`,
-                        minWidth: "6px",
-                        maxWidth: "20px"
-                      }}
-                      title={`${formatTime(point.timestamp)}: ${point.value}%`}
-                    >
-                      <div
-                        className={`w-full h-full rounded-t-sm ${color}`}
-                      />
-                    </div>
-                  );
-                })}
+              <div className="h-3 bg-slate-700 rounded-full overflow-hidden">
+                <div
+                  className={`h-3 rounded-full transition-all ${
+                    (data?.ram ?? 0) > 80 ? 'bg-red-500' :
+                    (data?.ram ?? 0) > 60 ? 'bg-orange-500' :
+                    (data?.ram ?? 0) > 40 ? 'bg-yellow-500' :
+                    'bg-purple-500'
+                  }`}
+                  style={{ width: `${Math.min(data?.ram ?? 0, 100)}%` }}
+                />
               </div>
             </div>
-          </div>
 
-          {/* Time legend */}
-          <div className="flex justify-between text-xs text-slate-400">
-            <span>{startTime}</span>
-            <span>{endTime}</span>
-          </div>
+            {/* Disk */}
+            <div>
+              <div className="flex justify-between items-center mb-2">
+                <div className="flex items-center gap-2">
+                  <Activity className="w-4 h-4 text-green-400" />
+                  <span className="text-sm text-slate-300">Disque</span>
+                </div>
+                <span className="text-white font-bold">{data?.disk ?? 0}%</span>
+              </div>
+              <div className="h-3 bg-slate-700 rounded-full overflow-hidden">
+                <div
+                  className={`h-3 rounded-full transition-all ${
+                    (data?.disk ?? 0) > 90 ? 'bg-red-500' :
+                    (data?.disk ?? 0) > 80 ? 'bg-orange-500' :
+                    (data?.disk ?? 0) > 70 ? 'bg-yellow-500' :
+                    'bg-green-500'
+                  }`}
+                  style={{ width: `${Math.min(data?.disk ?? 0, 100)}%` }}
+                />
+              </div>
+            </div>
 
-          {/* Color legend */}
-          <div className="flex items-center justify-center gap-6 pt-3 border-t border-slate-700">
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-sm bg-green-500" />
-              <span className="text-xs text-slate-300">Normal</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-sm bg-orange-500" />
-              <span className="text-xs text-slate-300">Activité</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-sm bg-red-500" />
-              <span className="text-xs text-slate-300">Très fort</span>
-            </div>
+            {/* Uptime */}
+            {data?.uptime && (
+              <div className="pt-3 border-t border-slate-700">
+                <div className="text-xs text-slate-400">
+                  Uptime: <span className="text-white">{data.uptime}</span>
+                </div>
+              </div>
+            )}
           </div>
-
-          {/* Last update */}
-          <div className="flex items-center justify-center gap-2 text-xs text-slate-400 pt-2">
-            <RefreshCw className="w-3 h-3" />
-            <span>Mis à jour: {lastUpdate.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span>
-          </div>
-        </div>
+        )}
       </CardContent>
     </Card>
   );

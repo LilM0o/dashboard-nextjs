@@ -1,11 +1,7 @@
-"use client";
-
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
 import { MessageSquare, Clock, DollarSign } from "lucide-react";
-import useSWR from "swr";
-
-const fetcher = (url: string) => fetch(url).then((res) => res.json());
+import { useEffect, useState } from "react";
 
 interface DailyData {
   date: string;
@@ -27,11 +23,34 @@ interface TokensData {
 const DAYS_FR = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
 
 export function TokensChart() {
-  const { data, error, isLoading } = useSWR<TokensData>("/api/tokens", fetcher, {
-    refreshInterval: 60000,
-  });
+  const [data, setData] = useState<TokensData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Transformer les données quotidiennes pour le graphique
+  // Fetch data server-side
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const response = await fetch('/api/tokens');
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const result: TokensData = await response.json();
+        setData(result);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Erreur inconnue');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+
+    const interval = setInterval(fetchData, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
   const chartData = data?.daily?.map((d) => {
     const date = new Date(d.date);
     const dayName = DAYS_FR[date.getDay()];
@@ -56,8 +75,8 @@ export function TokensChart() {
       </CardHeader>
       <CardContent>
         {error ? (
-          <div className="text-red-400">Erreur chargement</div>
-        ) : isLoading ? (
+          <div className="text-red-400">{error}</div>
+        ) : loading ? (
           <div className="text-slate-400">Chargement...</div>
         ) : (
           <>
@@ -97,7 +116,11 @@ export function TokensChart() {
                     width={40}
                   />
                   <Tooltip
-                    contentStyle={{ backgroundColor: "#1e293b", border: "1px solid #334155", borderRadius: "8px" }}
+                    contentStyle={{ 
+                      backgroundColor: "#1e293b", 
+                      border: "1px solid #334155", 
+                      borderRadius: "8px" 
+                    }}
                     labelStyle={{ color: "#fff" }}
                     formatter={(value: any) => [formatTokens(typeof value === 'number' ? value : Number(value)), "tokens"]}
                   />

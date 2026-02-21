@@ -1,37 +1,108 @@
 import { NextResponse } from "next/server";
-import { exec } from "child_process";
-import { promisify } from "util";
+import { readFile, readdir } from "fs/promises";
+import { join } from "path";
+import { existsSync } from "fs";
 
-const execAsync = promisify(exec);
+// Chemin base OpenClaw
+const OPENCLAW_DIR = "/home/ubuntu/.openclaw";
+const AGENTS_DIR = join(OPENCLAW_DIR, "agents");
+
+interface MessageEntry {
+  type: string;
+  message?: {
+    usage?: {
+      totalTokens?: number;
+      input?: number;
+      output?: number;
+    };
+    model?: string;
+    modelProvider?: string;
+    timestamp?: number;
+  };
+}
+
+interface SessionData {
+  sessionFile: string;
+  updatedAt: number;
+  model?: string;
+}
 
 export async function GET() {
   try {
-    // Récupérer les sessions depuis OpenClaw
-    const { stdout, stderr } = await execAsync("openclaw sessions list --json");
-    
-    if (stderr) {
-      console.error("Erreur stderr sessions list:", stderr);
-    }
+    const now = new Date();
+    const sevenDaysAgo = now.getTime() - 7 * 24 * 60 * 60 * 1000;
 
-    const sessionsData = JSON.parse(stdout);
-    const sessions = sessionsData.sessions || [];
+    // Lister tous les agents
+    const agents = await readdir(AGENTS_DIR);
+    const sessionsData: SessionData[] = [];
 
-    // Agréger par modèle
-    const models: Record<string, { input_tokens: number; output_tokens: number; count: number }> = {};
-
-    sessions.forEach((session: any) => {
-      const model = session.model || "unknown";
-      const inputTokens = session.inputTokens ?? 0;
-      const outputTokens = session.outputTokens ?? 0;
-
-      if (!models[model]) {
-        models[model] = { input_tokens: 0, output_tokens: 0, count: 0 };
+    // Récupérer les métadonnées de toutes les sessions
+    for (const agent of agents) {
+      const sessionsJsonPath = join(AGENTS_DIR, agent, "sessions", "sessions.json");
+      
+      if (!existsSync(sessionsJsonPath)) {
+        continue;
       }
 
-      models[model].input_tokens += inputTokens;
-      models[model].output_tokens += outputTokens;
-      models[model].count += 1;
-    });
+      const content = await readFile(sessionsJsonPath, "utf-8");
+      const sessions = JSON.parse(content);
+
+      for (const [key, data] of Object.entries(sessions)) {
+        const session = data as any;
+        sessionsData.push({
+          sessionFile: session.sessionFile,
+          updatedAt: session.updatedAt || 0,
+          model: session.model || session.modelProvider || "unknown"
+        });
+      }
+    }
+
+    // Agréger par modèle depuis les JSONL
+    const models: Record<string, { input_tokens: number; output_tokens: number; count: number }> = {};
+
+    // Parcourir les sessions actives (7 derniers jours)
+    for (const session of sessionsData) {
+      if (session.updatedAt < sevenDaysAgo) {
+        continue;
+      }
+
+      if (!existsSync(session.sessionFile)) {
+        continue;
+      }
+
+      // Lire le JSONL ligne par ligne
+      const lines = (await readFile(session.sessionFile, "utf-8")).split("\n");
+
+      for (const line of lines) {
+        if (!line.trim()) continue;
+
+        try {
+          const entry: MessageEntry = JSON.parse(line);
+
+          // Extraire les tokens et le modèle des messages
+          if (entry.type === "message" && entry.message?.usage) {
+            const inputTokens = entry.message.usage.input || 0;
+            const outputTokens = entry.message.usage.output || 0;
+            const totalTokens = entry.message.usage.totalTokens || (inputTokens + outputTokens);
+
+            // Extraire le modèle depuis le message ou la session
+            const model = entry.message.model || (session as any).model || "unknown";
+
+            if (totalTokens > 0) {
+              if (!models[model]) {
+                models[model] = { input_tokens: 0, output_tokens: 0, count: 0 };
+              }
+
+              models[model].input_tokens += inputTokens;
+              models[model].output_tokens += outputTokens;
+              models[model].count += 1;
+            }
+          }
+        } catch (e) {
+          // Ignorer les lignes invalides
+        }
+      }
+    }
 
     // Calculer total tokens et sessions
     let totalTokens = 0;

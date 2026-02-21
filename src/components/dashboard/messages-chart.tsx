@@ -3,9 +3,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { MessageCircle, TrendingUp, Calendar } from "lucide-react";
-import useSWR from "swr";
-
-const fetcher = (url: string) => fetch(url).then((res) => res.json());
+import { useEffect, useState } from "react";
 
 interface DailyMessage {
   date: string;
@@ -23,9 +21,32 @@ interface MessagesData {
 }
 
 export function MessagesChart() {
-  const { data, error, isLoading } = useSWR<MessagesData>("/api/messages", fetcher, {
-    refreshInterval: 60000,
-  });
+  const [data, setData] = useState<MessagesData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const response = await fetch('/api/messages');
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const result: MessagesData = await response.json();
+        setData(result);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Erreur inconnue');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+
+    const interval = setInterval(fetchData, 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   const chartData = data?.daily?.map(d => ({
     day: d.day,
@@ -56,8 +77,8 @@ export function MessagesChart() {
       </CardHeader>
       <CardContent>
         {error ? (
-          <div className="text-red-400">Erreur chargement</div>
-        ) : isLoading ? (
+          <div className="text-red-400">{error}</div>
+        ) : loading ? (
           <div className="text-slate-400">Chargement...</div>
         ) : (
           <>

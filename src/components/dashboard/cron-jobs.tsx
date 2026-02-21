@@ -1,74 +1,124 @@
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Calendar } from "lucide-react";
-import useSWR from "swr";
-
-const fetcher = (url: string) => fetch(url).then((res) => res.json());
+import { Calendar, Clock, CheckCircle, AlertTriangle } from "lucide-react";
+import { useEffect, useState } from "react";
 
 interface CronJob {
-  name: string;
   schedule: string;
-  status: string;
-  last_status: string;
-  enabled: boolean;
+  last_run?: string;
+  next_run?: string;
+  status: 'success' | 'failed' | 'running';
 }
 
 interface CronData {
   jobs: CronJob[];
-  total: number;
-  active: number;
 }
 
 export function CronJobs() {
-  const { data, error, isLoading } = useSWR<CronData>("/api/cron", fetcher, {
-    refreshInterval: 60000,
-  });
+  const [data, setData] = useState<CronData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  if (error) return <div className="text-red-400">Erreur chargement</div>;
-  if (isLoading) return <div className="text-slate-400">Chargement...</div>;
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const response = await fetch('/api/cron');
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const result: CronData = await response.json();
+        setData(result);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Erreur inconnue');
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const jobs = data?.jobs ?? [];
+    fetchData();
+
+    const interval = setInterval(fetchData, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const formatTime = (timestamp?: string) => {
+    if (!timestamp) return '--';
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString('fr-FR', {
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const getJobIcon = (status: CronJob['status']) => {
+    switch (status) {
+      case 'success':
+        return <CheckCircle className="w-4 h-4 text-green-400" />;
+      case 'failed':
+        return <AlertTriangle className="w-4 h-4 text-red-400" />;
+      case 'running':
+        return <Clock className="w-4 h-4 text-yellow-400 animate-spin" />;
+      default:
+        return <Clock className="w-4 h-4 text-slate-400" />;
+    }
+  };
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center justify-between text-white">
-          <div className="flex items-center gap-2">
-            <Calendar className="w-5 h-5" />
-            Cron Jobs
-          </div>
-          <span className="text-xs text-slate-400">
-            {data?.active ?? 0}/{data?.total ?? 0} actifs
-          </span>
+        <CardTitle className="flex items-center gap-2 text-white">
+          <Calendar className="w-5 h-5 text-orange-400" />
+          Cron Jobs
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="space-y-2 max-h-96 overflow-y-auto">
-          {jobs.map((job, i) => (
-            <div 
-              key={i} 
-              className="flex justify-between items-center p-3 bg-slate-900 rounded hover:bg-slate-800 transition-all cursor-pointer"
-              title={`Cliquer pour voir les détails du job: ${job.name}`}
-            >
-              <div className="flex-1 min-w-0">
-                <span className="text-white text-sm font-medium">{job.name}</span>
-                <div className="text-xs text-slate-500 mt-0.5">{job.schedule}</div>
+        {error ? (
+          <div className="text-red-400">{error}</div>
+        ) : loading ? (
+          <div className="text-slate-400">Chargement...</div>
+        ) : (
+          <>
+            {data?.jobs && data.jobs.length > 0 ? (
+              <div className="space-y-2">
+                {data.jobs.map((job, idx) => (
+                  <div key={idx} className="p-3 rounded border border-slate-700">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex-1">
+                        <div className="text-sm text-white font-medium">{job.schedule}</div>
+                        {job.status === 'running' && (
+                          <div className="text-xs text-yellow-400 ml-2">En cours...</div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {getJobIcon(job.status)}
+                        <div className={`text-xs ${
+                          job.status === 'success' ? 'text-green-400' :
+                          job.status === 'failed' ? 'text-red-400' :
+                          'text-slate-400'
+                        }`}>
+                          {job.status === 'success' && 'Exécuté'}
+                          {job.status === 'failed' && 'Échoué'}
+                          {job.status === 'running' && 'En cours'}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex justify-between text-xs text-slate-400">
+                      <span>Dernière exécution: {formatTime(job.last_run)}</span>
+                      <span>Prochaine: {formatTime(job.next_run)}</span>
+                    </div>
+                  </div>
+                ))}
               </div>
-              <span
-                className={`text-xs px-2 py-1 rounded ml-2 shrink-0 ${
-                  job.last_status === "ok"
-                    ? "bg-green-900 text-green-400"
-                    : job.last_status === "error"
-                    ? "bg-red-900 text-red-400"
-                    : "bg-slate-700 text-slate-400"
-                }`}
-              >
-                {job.last_status ?? "unknown"}
-              </span>
-            </div>
-          ))}
-        </div>
+            ) : (
+              <div className="text-center text-slate-400 py-4">
+                Aucun cron job configuré
+              </div>
+            )}
+          </>
+        )}
       </CardContent>
     </Card>
   );
