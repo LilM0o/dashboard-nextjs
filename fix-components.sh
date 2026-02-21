@@ -2,7 +2,7 @@
 
 # Script pour convertir tous les composants Dashboard de client-side useSWR vers server-side data fetching
 
-COMPONENTS_DIR="/home/ubuntu/clawd/projects/dashboard-nextjs/src/components/dashboard"
+COMPONENTS_DIR="/home/ubuntu/clawd/projects/dashboard-monitoring/src/components/dashboard"
 
 cd "$COMPONENTS_DIR"
 

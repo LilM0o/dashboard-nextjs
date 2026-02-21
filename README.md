@@ -34,7 +34,7 @@ Le dashboard récupère les données depuis :
 
 - **Dashboard**: http://100.86.54.54:5454
 - **Filebrowser**: http://100.86.54.54:8443
-- **Mission Control**: http://100.86.54.54:3001
+- **Mission Control**: http://100.86.54.54:9595
 
 ## APIs
 
