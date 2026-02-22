@@ -5,6 +5,7 @@ import { Calendar, Clock, CheckCircle, AlertTriangle } from "lucide-react";
 import { useEffect, useState } from "react";
 
 interface CronJob {
+  name: string;
   schedule: string;
   last_run?: string;
   next_run?: string;
@@ -19,6 +20,7 @@ export function CronJobs() {
   const [data, setData] = useState<CronData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [expandedJob, setExpandedJob] = useState<number | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -83,32 +85,56 @@ export function CronJobs() {
             {data?.jobs && data.jobs.length > 0 ? (
               <div className="space-y-2">
                 {data.jobs.map((job, idx) => (
-                  <div key={idx} className="p-3 rounded border border-slate-700">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex-1">
-                        <div className="text-sm text-white font-medium">{job.schedule}</div>
-                        {job.status === 'running' && (
-                          <div className="text-xs text-yellow-400 ml-2">En cours...</div>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {getJobIcon(job.status)}
-                        <div className={`text-xs ${
-                          job.status === 'success' ? 'text-green-400' :
-                          job.status === 'failed' ? 'text-red-400' :
-                          'text-slate-400'
-                        }`}>
-                          {job.status === 'success' && 'Exécuté'}
-                          {job.status === 'failed' && 'Échoué'}
-                          {job.status === 'running' && 'En cours'}
+                  <div
+                    key={idx}
+                    className="p-3 rounded border border-slate-700 cursor-pointer hover:bg-slate-800/50 transition-colors"
+                    onClick={() => setExpandedJob(expandedJob === idx ? null : idx)}
+                  >
+                    {/* Affichage compact quand fermé */}
+                    {expandedJob !== idx ? (
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <div className="text-sm text-white font-medium">{job.name}</div>
+                          <div className="text-xs text-slate-400 mt-1">{job.schedule}</div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {getJobIcon(job.status)}
+                          <span className="text-xs text-slate-400">
+                            {expandedJob === null ? '▶' : '▼'}
+                          </span>
                         </div>
                       </div>
-                    </div>
+                    ) : (
+                      /* Détails quand ouvert */
+                      <>
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex-1">
+                            <div className="text-sm text-white font-medium">{job.name}</div>
+                            <div className="text-xs text-slate-400 mt-1">{job.schedule}</div>
+                            {job.status === 'running' && (
+                              <div className="text-xs text-yellow-400 ml-2 mt-1">En cours...</div>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {getJobIcon(job.status)}
+                            <div className={`text-xs ${
+                              job.status === 'success' ? 'text-green-400' :
+                              job.status === 'failed' ? 'text-red-400' :
+                              'text-slate-400'
+                            }`}>
+                              {job.status === 'success' && 'Exécuté'}
+                              {job.status === 'failed' && 'Échoué'}
+                              {job.status === 'running' && 'En cours'}
+                            </div>
+                          </div>
+                        </div>
 
-                    <div className="flex justify-between text-xs text-slate-400">
-                      <span>Dernière exécution: {formatTime(job.last_run)}</span>
-                      <span>Prochaine: {formatTime(job.next_run)}</span>
-                    </div>
+                        <div className="flex justify-between text-xs text-slate-400">
+                          <span>Dernière exécution: {formatTime(job.last_run)}</span>
+                          <span>Prochaine: {formatTime(job.next_run)}</span>
+                        </div>
+                      </>
+                    )}
                   </div>
                 ))}
               </div>

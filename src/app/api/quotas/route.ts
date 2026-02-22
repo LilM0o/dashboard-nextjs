@@ -18,6 +18,7 @@ const BUDGET_MONTHLY = {
 
 // Mapping des modèles aux providers
 const MODEL_TO_PROVIDER: Record<string, "zai" | "minimax"> = {
+  // Modèles avec préfixe (existants)
   "zai/glm-4.7": "zai",
   "zai/glm-4.7-flash": "zai",
   "zai/glm-4.5-air": "zai",
@@ -25,7 +26,14 @@ const MODEL_TO_PROVIDER: Record<string, "zai" | "minimax"> = {
   "minimax/MiniMax-M2.5": "minimax",
   "minimax/mini-max": "minimax",
   "minimax/minimax-m2.1": "minimax",
-  "openrouter/minimax/minimax-m2.1": "minimax"
+  "openrouter/minimax/minimax-m2.1": "minimax",
+  // Modèles sans préfixe (ajoutés - vus dans openclaw sessions list)
+  "glm-4.7": "zai",
+  "glm-4.7-flash": "zai",
+  "glm-4.5-air": "zai",
+  "MiniMax-M2.5": "minimax",
+  "MiniMax M2.5": "minimax",
+  "minimax-m2.1": "minimax"
 };
 
 export async function GET() {

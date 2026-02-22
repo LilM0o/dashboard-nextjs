@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { SystemMetrics } from "@/components/dashboard/system-metrics";
 import { QuotasDisplay } from "@/components/dashboard/quotas-display";
 import { TokensChart } from "@/components/dashboard/tokens-chart";
 import { ErrorsDisplay } from "@/components/dashboard/errors-display";
@@ -73,7 +72,7 @@ export default function Dashboard() {
           </button>
           
           <div className="flex flex-wrap gap-2">
-            <a href="http://100.86.54.54:18789" target="_blank" className="flex items-center gap-2 px-3 py-2 bg-blue-600/20 border border-blue-500/30 text-blue-400 rounded-lg text-sm">
+            <a href="/gateway" target="_blank" className="flex items-center gap-2 px-3 py-2 bg-blue-600/20 border border-blue-500/30 text-blue-400 rounded-lg text-sm">
               <Server className="w-4 h-4" /> Gateway
             </a>
             <a href="http://100.86.54.54:8443" target="_blank" className="flex items-center gap-2 px-3 py-2 bg-green-600/20 border border-green-500/30 text-green-400 rounded-lg text-sm">
@@ -82,7 +81,7 @@ export default function Dashboard() {
             <a href="/logs" target="_blank" className="flex items-center gap-2 px-3 py-2 bg-orange-600/20 border border-orange-500/30 text-orange-400 rounded-lg text-sm">
               <Terminal className="w-4 h-4" /> Logs
             </a>
-            <a href="http://100.86.54.54:3001/dashboard.html" target="_blank" className="flex items-center gap-2 px-3 py-2 bg-purple-600/20 border border-purple-500/30 text-purple-400 rounded-lg text-sm">
+            <a href="http://100.86.54.54:9595" target="_blank" className="flex items-center gap-2 px-3 py-2 bg-purple-600/20 border border-purple-500/30 text-purple-400 rounded-lg text-sm">
               <Gauge className="w-4 h-4" /> Mission Ctrl
             </a>
           </div>
@@ -114,7 +113,6 @@ export default function Dashboard() {
 
       {activeTab === "system" && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          <SystemMetrics />
           <ErrorsDisplay />
           <CronJobs />
           <HeartbeatsDisplay />

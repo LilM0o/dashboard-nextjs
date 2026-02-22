@@ -85,6 +85,51 @@ export async function GET() {
 
     const active = heartbeats.filter((hb: any) => hb.enabled).length;
 
+    // Si aucun heartbeat dans le fichier, utiliser un fallback basé sur HEARTBEAT.md
+    if (heartbeats.length === 0) {
+      const fallbackHeartbeats = [
+        {
+          name: "Matin (8h)",
+          schedule: "daily",
+          last_run: "--",
+          next_run: "--",
+          status: "pending" as const,
+          enabled: true
+        },
+        {
+          name: "Après-midi (14h)",
+          schedule: "daily",
+          last_run: "--",
+          next_run: "--",
+          status: "pending" as const,
+          enabled: true
+        },
+        {
+          name: "Soir (18h)",
+          schedule: "daily",
+          last_run: "--",
+          next_run: "--",
+          status: "pending" as const,
+          enabled: true
+        },
+        {
+          name: "Hebdo (Dim 14h)",
+          schedule: "weekly",
+          last_run: "--",
+          next_run: "--",
+          status: "pending" as const,
+          enabled: true
+        }
+      ];
+
+      return NextResponse.json({
+        jobs: fallbackHeartbeats,
+        active: fallbackHeartbeats.length,
+        total: fallbackHeartbeats.length,
+        source: "fallback"
+      });
+    }
+
     return NextResponse.json({
       jobs: heartbeats,
       active,

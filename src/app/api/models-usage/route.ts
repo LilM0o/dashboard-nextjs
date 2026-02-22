@@ -34,7 +34,6 @@ export async function GET() {
 
     // Lister tous les agents
     const agents = await readdir(AGENTS_DIR);
-    const sessionsData: SessionData[] = [];
 
     // Récupérer les métadonnées de toutes les sessions en parallèle
     const sessionsResults = await Promise.all(
@@ -61,10 +60,13 @@ export async function GET() {
         return agentSessions;
       })
     );
-    
+
+    // Aplatir les sessionsResults en un seul tableau
+    const allSessions = sessionsResults.flatMap((agentSessions) => agentSessions);
+
     // Agréger par modèle depuis les JSONL en parallèle
     const modelsResults = await Promise.all(
-      sessionsData
+      allSessions
         .filter(session => session.updatedAt >= sevenDaysAgo && session.sessionFile && existsSync(session.sessionFile))
         .map(async (session) => {
           const lines = (await readFile(session.sessionFile, "utf-8")).split("\n");
