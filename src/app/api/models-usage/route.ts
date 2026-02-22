@@ -36,71 +36,83 @@ export async function GET() {
     const agents = await readdir(AGENTS_DIR);
     const sessionsData: SessionData[] = [];
 
-    // Récupérer les métadonnées de toutes les sessions
-    for (const agent of agents) {
-      const sessionsJsonPath = join(AGENTS_DIR, agent, "sessions", "sessions.json");
-      
-      if (!existsSync(sessionsJsonPath)) {
-        continue;
-      }
+    // Récupérer les métadonnées de toutes les sessions en parallèle
+    const sessionsResults = await Promise.all(
+      agents.map(async (agent) => {
+        const sessionsJsonPath = join(AGENTS_DIR, agent, "sessions", "sessions.json");
+        
+        if (!existsSync(sessionsJsonPath)) {
+          return [];
+        }
 
-      const content = await readFile(sessionsJsonPath, "utf-8");
-      const sessions = JSON.parse(content);
+        const content = await readFile(sessionsJsonPath, "utf-8");
+        const sessions = JSON.parse(content);
+        const agentSessions: SessionData[] = [];
 
-      for (const [key, data] of Object.entries(sessions)) {
-        const session = data as any;
-        sessionsData.push({
-          sessionFile: session.sessionFile,
-          updatedAt: session.updatedAt || 0,
-          model: session.model || session.modelProvider || "unknown"
-        });
-      }
-    }
+        for (const [key, data] of Object.entries(sessions)) {
+          const session = data as any;
+          agentSessions.push({
+            sessionFile: session.sessionFile,
+            updatedAt: session.updatedAt || 0,
+            model: session.model || session.modelProvider || "unknown"
+          });
+        }
+        
+        return agentSessions;
+      })
+    );
+    
+    // Agréger par modèle depuis les JSONL en parallèle
+    const modelsResults = await Promise.all(
+      sessionsData
+        .filter(session => session.updatedAt >= sevenDaysAgo && session.sessionFile && existsSync(session.sessionFile))
+        .map(async (session) => {
+          const lines = (await readFile(session.sessionFile, "utf-8")).split("\n");
+          const sessionModel = session.model || "unknown";
+          const modelUsage: Record<string, { input_tokens: number; output_tokens: number; count: number }> = {};
 
-    // Agréger par modèle depuis les JSONL
-    const models: Record<string, { input_tokens: number; output_tokens: number; count: number }> = {};
+          for (const line of lines) {
+            if (!line.trim()) continue;
 
-    // Parcourir les sessions actives (7 derniers jours)
-    for (const session of sessionsData) {
-      if (session.updatedAt < sevenDaysAgo) {
-        continue;
-      }
+            try {
+              const entry: MessageEntry = JSON.parse(line);
 
-      if (!existsSync(session.sessionFile)) {
-        continue;
-      }
+              if (entry.type === "message" && entry.message?.usage) {
+                const inputTokens = entry.message.usage.input || 0;
+                const outputTokens = entry.message.usage.output || 0;
+                const totalTokens = entry.message.usage.totalTokens || (inputTokens + outputTokens);
 
-      // Lire le JSONL ligne par ligne
-      const lines = (await readFile(session.sessionFile, "utf-8")).split("\n");
+                const model = entry.message.model || sessionModel;
 
-      for (const line of lines) {
-        if (!line.trim()) continue;
+                if (totalTokens > 0) {
+                  if (!modelUsage[model]) {
+                    modelUsage[model] = { input_tokens: 0, output_tokens: 0, count: 0 };
+                  }
 
-        try {
-          const entry: MessageEntry = JSON.parse(line);
-
-          // Extraire les tokens et le modèle des messages
-          if (entry.type === "message" && entry.message?.usage) {
-            const inputTokens = entry.message.usage.input || 0;
-            const outputTokens = entry.message.usage.output || 0;
-            const totalTokens = entry.message.usage.totalTokens || (inputTokens + outputTokens);
-
-            // Extraire le modèle depuis le message ou la session
-            const model = entry.message.model || (session as any).model || "unknown";
-
-            if (totalTokens > 0) {
-              if (!models[model]) {
-                models[model] = { input_tokens: 0, output_tokens: 0, count: 0 };
+                  modelUsage[model].input_tokens += inputTokens;
+                  modelUsage[model].output_tokens += outputTokens;
+                  modelUsage[model].count += 1;
+                }
               }
-
-              models[model].input_tokens += inputTokens;
-              models[model].output_tokens += outputTokens;
-              models[model].count += 1;
+            } catch (e) {
+              // Ignorer les lignes invalides
             }
           }
-        } catch (e) {
-          // Ignorer les lignes invalides
+
+          return modelUsage;
+        })
+    );
+
+    // Fusionner les résultats
+    const models: Record<string, { input_tokens: number; output_tokens: number; count: number }> = {};
+    for (const result of modelsResults) {
+      for (const [model, data] of Object.entries(result)) {
+        if (!models[model]) {
+          models[model] = { input_tokens: 0, output_tokens: 0, count: 0 };
         }
+        models[model].input_tokens += data.input_tokens;
+        models[model].output_tokens += data.output_tokens;
+        models[model].count += data.count;
       }
     }
 

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import fs from "fs";
+import { promises as fs } from "fs";
 import path from "path";
 
 const COMMANDS_LOG = "/home/ubuntu/.openclaw/logs/commands.log";
@@ -7,7 +7,9 @@ const COMMANDS_LOG = "/home/ubuntu/.openclaw/logs/commands.log";
 export async function GET() {
   try {
     // Lire le fichier commands.log
-    if (!fs.existsSync(COMMANDS_LOG)) {
+    try {
+      await fs.access(COMMANDS_LOG);
+    } catch {
       return NextResponse.json({
         messages_today: 0,
         messages_7d: 0,
@@ -16,7 +18,7 @@ export async function GET() {
       });
     }
 
-    const content = fs.readFileSync(COMMANDS_LOG, "utf-8");
+    const content = await fs.readFile(COMMANDS_LOG, "utf-8");
     const lines = content.trim().split("\n").filter(line => line.length > 0);
 
     // Parser chaque ligne JSON

@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import fs from "fs";
+import { promises as fs } from "fs";
 import path from "path";
 
 const IDEAS_FILE = "/home/ubuntu/clawd/workspace/dashboard-ideas.json";
 
 export async function GET() {
   try {
-    const data = fs.readFileSync(IDEAS_FILE, "utf-8");
+    const data = await fs.readFile(IDEAS_FILE, "utf-8");
     const ideas = JSON.parse(data);
     return NextResponse.json(ideas);
   } catch (error) {
@@ -21,7 +21,7 @@ export async function POST(request: Request) {
   try {
     const newIdea = await request.json();
 
-    const data = fs.readFileSync(IDEAS_FILE, "utf-8");
+    const data = await fs.readFile(IDEAS_FILE, "utf-8");
     const ideas = JSON.parse(data);
 
     const idea = {
@@ -32,7 +32,7 @@ export async function POST(request: Request) {
 
     ideas.ideas.push(idea);
 
-    fs.writeFileSync(IDEAS_FILE, JSON.stringify(ideas, null, 2));
+    await fs.writeFile(IDEAS_FILE, JSON.stringify(ideas, null, 2));
 
     return NextResponse.json(idea);
   } catch (error) {

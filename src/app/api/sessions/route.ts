@@ -26,69 +26,76 @@ export async function GET() {
 
     // Lister tous les agents
     const agents = await readdir(AGENTS_DIR);
-    const sessionsList: any[] = [];
 
-    // Pour chaque agent, lire les sessions
-    for (const agent of agents) {
-      const sessionsJsonPath = join(AGENTS_DIR, agent, "sessions", "sessions.json");
-      
-      if (!existsSync(sessionsJsonPath)) {
-        continue;
-      }
-
-      const content = await readFile(sessionsJsonPath, "utf-8");
-      const sessions = JSON.parse(content);
-
-      for (const [sessionKey, data] of Object.entries(sessions)) {
-        const session = data as any;
+    // Pour chaque agent, lire les sessions en parallèle
+    const sessionsResults = await Promise.all(
+      agents.map(async (agent): Promise<any[]> => {
+        const sessionsJsonPath = join(AGENTS_DIR, agent, "sessions", "sessions.json");
         
-        // Filtrer sessions actives (7 derniers jours)
-        if (session.updatedAt && session.updatedAt < sevenDaysAgo) {
-          continue;
+        if (!existsSync(sessionsJsonPath)) {
+          return [];
         }
 
-        // Calculer les totaux depuis le JSONL
-        let totalTokens = 0;
-        let totalMessages = 0;
-        let sessionFile = session.sessionFile;
+        const content = await readFile(sessionsJsonPath, "utf-8");
+        const sessions = JSON.parse(content);
+        const agentSessions: any[] = [];
 
-        if (sessionFile && existsSync(sessionFile)) {
-          const lines = (await readFile(sessionFile, "utf-8")).split("\n");
+        for (const [sessionKey, data] of Object.entries(sessions)) {
+          const session = data as any;
+          
+          // Filtrer sessions actives (7 derniers jours)
+          if (session.updatedAt && session.updatedAt < sevenDaysAgo) {
+            continue;
+          }
 
-          for (const line of lines) {
-            if (!line.trim()) continue;
+          // Calculer les totaux depuis le JSONL
+          let totalTokens = 0;
+          let totalMessages = 0;
+          let sessionFile = session.sessionFile;
 
-            try {
-              const entry: MessageEntry = JSON.parse(line);
+          if (sessionFile && existsSync(sessionFile)) {
+            const lines = (await readFile(sessionFile, "utf-8")).split("\n");
 
-              if (entry.type === "message" && entry.message?.usage) {
-                const tokens = entry.message.usage.totalTokens || 
-                              (entry.message.usage.input || 0) + (entry.message.usage.output || 0);
-                
-                if (tokens > 0) {
-                  totalTokens += tokens;
-                  totalMessages++;
+            for (const line of lines) {
+              if (!line.trim()) continue;
+
+              try {
+                const entry: MessageEntry = JSON.parse(line);
+
+                if (entry.type === "message" && entry.message?.usage) {
+                  const tokens = entry.message.usage.totalTokens || 
+                                (entry.message.usage.input || 0) + (entry.message.usage.output || 0);
+                  
+                  if (tokens > 0) {
+                    totalTokens += tokens;
+                    totalMessages++;
+                  }
                 }
+              } catch (e) {
+                // Ignorer les lignes invalides
               }
-            } catch (e) {
-              // Ignorer les lignes invalides
             }
           }
+
+          agentSessions.push({
+            id: session.sessionId || sessionKey,
+            key: sessionKey,
+            agent: agent,
+            model: session.model || session.modelProvider || "unknown",
+            chatType: session.chatType || "unknown",
+            totalTokens,
+            totalMessages,
+            updatedAt: session.updatedAt ? new Date(session.updatedAt).toISOString() : null,
+            lastChannel: session.lastChannel || "unknown"
+          });
         }
 
-        sessionsList.push({
-          id: session.sessionId || sessionKey,
-          key: sessionKey,
-          agent: agent,
-          model: session.model || session.modelProvider || "unknown",
-          chatType: session.chatType || "unknown",
-          totalTokens,
-          totalMessages,
-          updatedAt: session.updatedAt ? new Date(session.updatedAt).toISOString() : null,
-          lastChannel: session.lastChannel || "unknown"
-        });
-      }
-    }
+        return agentSessions;
+      })
+    );
+
+    // Aplatir les résultats
+    const sessionsList = sessionsResults.flat();
 
     // Trier par updatedAt (plus récent en premier)
     sessionsList.sort((a, b) => {

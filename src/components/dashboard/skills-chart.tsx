@@ -3,7 +3,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis } from "recharts";
 import { Wrench, TrendingUp } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 
 interface SkillData {
   skill: string;
@@ -28,6 +28,10 @@ const COLORS = [
   '#8b5cf6', '#ec4899', '#06b6d4', '#10b981',
   '#f97316', '#6366f1', '#14b8a6', '#e11d48'
 ];
+
+// Fixed heights for charts (responsive handled by ResponsiveContainer)
+const PIE_HEIGHT = 220;
+const BAR_HEIGHT = 160;
 
 // Format des noms de skills pour l'affichage
 const formatSkillName = (skill: string) => {
@@ -139,36 +143,39 @@ export function SkillsChart() {
 
             {/* Pie Chart */}
             {chartData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={180}>
-                <PieChart>
-                  <Pie
-                    data={chartData}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={renderLabel}
-                    outerRadius={70}
-                    innerRadius={35}
-                    paddingAngle={3}
-                  >
-                    {chartData.map((entry, index) => (
-                      <Cell 
-                        key={`cell-${index}`} 
-                        fill={COLORS[index % COLORS.length]} 
-                        name={entry.name}
-                      />
-                    ))}
-                  </Pie>
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: "#1e293b", 
-                      border: "1px solid #334155", 
-                      borderRadius: "8px" 
-                    }}
-                    formatter={(value: any, name: any) => [`${value} utilisations`, name]}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
+              <div className="w-full" style={{ height: 180 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={chartData}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={renderLabel}
+                      outerRadius={70}
+                      innerRadius={35}
+                      paddingAngle={3}
+                      dataKey="value"
+                    >
+                      {chartData.map((entry, index) => (
+                        <Cell 
+                          key={`cell-${index}`} 
+                          fill={COLORS[index % COLORS.length]} 
+                          name={entry.name}
+                        />
+                      ))}
+                    </Pie>
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: "#1e293b", 
+                        border: "1px solid #334155", 
+                        borderRadius: "8px" 
+                      }}
+                      formatter={(value: any, name: any) => [`${value} utilisations`, name]}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
             ) : (
               <div className="text-center text-slate-400 py-4">
                 Aucune donnée disponible
@@ -177,41 +184,43 @@ export function SkillsChart() {
 
             {/* Bar Chart for Top Skills */}
             {chartData.length > 0 && (
-              <ResponsiveContainer width="100%" height={120}>
-                <BarChart data={chartData} layout="vertical">
-                  <XAxis 
-                    type="number"
-                    stroke="#64748b" 
-                    fontSize={10}
-                    tickLine={false}
-                    axisLine={false}
-                  />
-                  <YAxis 
-                    type="category"
-                    dataKey="name"
-                    stroke="#64748b" 
-                    fontSize={10}
-                    tickLine={false}
-                    axisLine={false}
-                    width={80}
-                  />
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: "#1e293b", 
-                      border: "1px solid #334155", 
-                      borderRadius: "8px" 
-                    }}
-                    labelStyle={{ color: "#fff" }}
-                    formatter={(value: any) => [`${value} utilisations`, ""]}
-                  />
-                  <Bar 
-                    dataKey="value" 
-                    fill="#f97316" 
-                    radius={[0, 4, 4, 0]}
-                    barSize={16}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
+              <div className="w-full" style={{ height: 120 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={chartData} layout="vertical">
+                    <XAxis 
+                      type="number"
+                      stroke="#64748b" 
+                      fontSize={10}
+                      tickLine={false}
+                      axisLine={false}
+                    />
+                    <YAxis 
+                      type="category"
+                      dataKey="name"
+                      stroke="#64748b" 
+                      fontSize={10}
+                      tickLine={false}
+                      axisLine={false}
+                      width={80}
+                    />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: "#1e293b", 
+                        border: "1px solid #334155", 
+                        borderRadius: "8px" 
+                      }}
+                      labelStyle={{ color: "#fff" }}
+                      formatter={(value: any) => [`${value} utilisations`, ""]}
+                    />
+                    <Bar 
+                      dataKey="value" 
+                      fill="#f97316" 
+                      radius={[0, 4, 4, 0]}
+                      barSize={16}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             )}
 
             {/* Legend */}

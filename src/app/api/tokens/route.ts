@@ -33,77 +33,80 @@ export async function GET() {
     const agents = await readdir(AGENTS_DIR);
     const sessionsData: SessionData[] = [];
 
-    // Récupérer les métadonnées de toutes les sessions
-    for (const agent of agents) {
-      const sessionsJsonPath = join(AGENTS_DIR, agent, "sessions", "sessions.json");
-      
-      if (!existsSync(sessionsJsonPath)) {
-        continue;
-      }
+    // Récupérer les métadonnées de toutes les sessions en parallèle
+    const sessionsResults = await Promise.all(
+      agents.map(async (agent) => {
+        const sessionsJsonPath = join(AGENTS_DIR, agent, "sessions", "sessions.json");
+        
+        if (!existsSync(sessionsJsonPath)) {
+          return [];
+        }
 
-      const content = await readFile(sessionsJsonPath, "utf-8");
-      const sessions = JSON.parse(content);
+        const content = await readFile(sessionsJsonPath, "utf-8");
+        const sessions = JSON.parse(content);
+        const agentSessions: SessionData[] = [];
 
-      for (const [key, data] of Object.entries(sessions)) {
-        const session = data as any;
-        sessionsData.push({
-          sessionFile: session.sessionFile,
-          updatedAt: session.updatedAt || 0
-        });
-      }
-    }
+        for (const [key, data] of Object.entries(sessions)) {
+          const session = data as any;
+          agentSessions.push({
+            sessionFile: session.sessionFile,
+            updatedAt: session.updatedAt || 0
+          });
+        }
+        
+        return agentSessions;
+      })
+    );
+    
+    // Filtrer sessions actives (7 derniers jours) et lire leurs JSONL en parallèle
+    const sessionTokensResults = await Promise.all(
+      sessionsData
+        .filter(session => session.updatedAt >= sevenDaysAgo && session.sessionFile && existsSync(session.sessionFile))
+        .map(async (session) => {
+          const lines = (await readFile(session.sessionFile, "utf-8")).split("\n");
+          const dateKey = new Date(session.updatedAt).toISOString().split("T")[0];
+          let hasActivity = false;
+          const tokensByDate: Record<string, number> = {};
 
-    // Grouper les tokens par date (lecture directe des JSONL)
-    const tokensByDate: Record<string, { tokens: number; sessions: number }> = {};
+          for (const line of lines) {
+            if (!line.trim()) continue;
 
-    // Filtrer sessions actives (7 derniers jours) et lire leurs JSONL
-    for (const session of sessionsData) {
-      if (session.updatedAt < sevenDaysAgo) {
-        continue;
-      }
+            try {
+              const entry: MessageEntry = JSON.parse(line);
 
-      if (!existsSync(session.sessionFile)) {
-        continue;
-      }
-
-      // Lire le JSONL ligne par ligne
-      const lines = (await readFile(session.sessionFile, "utf-8")).split("\n");
-      let sessionTokens = 0;
-      let hasActivity = false;
-
-      for (const line of lines) {
-        if (!line.trim()) continue;
-
-        try {
-          const entry: MessageEntry = JSON.parse(line);
-
-          // Extraire les tokens des messages
-          if (entry.type === "message" && entry.message?.usage) {
-            const totalTokens = entry.message.usage.totalTokens || 
-                           (entry.message.usage.input || 0) + (entry.message.usage.output || 0);
-            
-            if (totalTokens > 0 && entry.message.timestamp) {
-              const dateKey = new Date(entry.message.timestamp).toISOString().split("T")[0];
-              
-              if (!tokensByDate[dateKey]) {
-                tokensByDate[dateKey] = { tokens: 0, sessions: 0 };
+              if (entry.type === "message" && entry.message?.usage) {
+                const totalTokens = entry.message.usage.totalTokens || 
+                              (entry.message.usage.input || 0) + (entry.message.usage.output || 0);
+                
+                if (totalTokens > 0 && entry.message.timestamp) {
+                  const entryDateKey = new Date(entry.message.timestamp).toISOString().split("T")[0];
+                  tokensByDate[entryDateKey] = (tokensByDate[entryDateKey] || 0) + totalTokens;
+                  hasActivity = true;
+                }
               }
-              
-              tokensByDate[dateKey].tokens += totalTokens;
-              sessionTokens += totalTokens;
-              hasActivity = true;
+            } catch (e) {
+              // Ignorer les lignes invalides
             }
           }
-        } catch (e) {
-          // Ignorer les lignes invalides
-        }
-      }
 
-      if (hasActivity) {
-        const dateKey = new Date(session.updatedAt).toISOString().split("T")[0];
-        if (tokensByDate[dateKey]) {
-          tokensByDate[dateKey].sessions += 1;
+          return { dateKey, hasActivity, tokensByDate };
+        })
+    );
+
+    // Fusionner les résultats
+    const tokensByDate: Record<string, { tokens: number; sessions: number }> = {};
+    for (const result of sessionTokensResults) {
+      for (const [date, tokens] of Object.entries(result.tokensByDate)) {
+        if (!tokensByDate[date]) {
+          tokensByDate[date] = { tokens: 0, sessions: 0 };
         }
+        tokensByDate[date].tokens += tokens;
+      }
+      if (result.hasActivity) {
+        if (!tokensByDate[result.dateKey]) {
+          tokensByDate[result.dateKey] = { tokens: 0, sessions: 0 };
+        }
+        tokensByDate[result.dateKey].sessions += 1;
       }
     }
 

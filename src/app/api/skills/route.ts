@@ -53,99 +53,113 @@ export async function GET() {
     const agents = await readdir(AGENTS_DIR);
     const sessionsData: { sessionFile: string; updatedAt: number }[] = [];
 
-    // Récupérer les métadonnées de toutes les sessions
-    for (const agent of agents) {
-      const sessionsJsonPath = join(AGENTS_DIR, agent, "sessions", "sessions.json");
-      
-      if (!existsSync(sessionsJsonPath)) {
-        continue;
-      }
+    // Récupérer les métadonnées de toutes les sessions en parallèle
+    const sessionsResults = await Promise.all(
+      agents.map(async (agent) => {
+        const sessionsJsonPath = join(AGENTS_DIR, agent, "sessions", "sessions.json");
 
-      const content = await readFile(sessionsJsonPath, "utf-8");
-      const sessions = JSON.parse(content);
+        if (!existsSync(sessionsJsonPath)) {
+          return [];
+        }
 
-      for (const [key, data] of Object.entries(sessions)) {
-        const session = data as any;
-        sessionsData.push({
-          sessionFile: session.sessionFile,
-          updatedAt: session.updatedAt || 0
-        });
-      }
-    }
+        const content = await readFile(sessionsJsonPath, "utf-8");
+        const sessions = JSON.parse(content);
+        const agentSessions: { sessionFile: string; updatedAt: number }[] = [];
 
-    // Extraire l'utilisation des skills depuis les JSONL
+        for (const [key, data] of Object.entries(sessions)) {
+          const session = data as any;
+          agentSessions.push({
+            sessionFile: session.sessionFile,
+            updatedAt: session.updatedAt || 0
+          });
+        }
+
+        return agentSessions;
+      })
+    );
+
+    // Agréger par modèle depuis les JSONL en parallèle
+    const skillsResults = await Promise.all(
+      sessionsData
+        .filter(session => session.updatedAt >= sevenDaysAgo && session.sessionFile && existsSync(session.sessionFile))
+        .map(async (session) => {
+          const lines = (await readFile(session.sessionFile, "utf-8")).split("\n");
+          let sessionTokens = 0;
+          const skillCounts: Record<string, number> = {};
+          const skillTokens: Record<string, number> = {};
+
+          for (const line of lines) {
+            if (!line.trim()) continue;
+
+            try {
+              const entry: MessageEntry = JSON.parse(line);
+
+              // Extraire les tokens des messages
+              let messageTokens = 0;
+              if (entry.type === "message" && entry.message?.role === "assistant") {
+                // Chercher usage dans les messages assistant
+                const content = entry.message.content || [];
+
+                // Estimer les tokens du message
+                for (const item of content) {
+                  if (item.type === "text" && item.text) {
+                    // Estimation : ~4 tokens pour 1000 caractères
+                    messageTokens += Math.ceil((item.text.length || 0) / 4);
+                  }
+                }
+              }
+
+              // Extraire les skills mentionnés dans le texte
+              if (entry.type === "message" && entry.message?.content) {
+                const text = entry.message.content
+                  .map((c: MessageContent) => c.text || "")
+                  .join(" ");
+
+                // Chercher les patterns de skills
+                KNOWN_SKILLS.forEach(skill => {
+                  // Pattern : "skill:", "🔹 skill:", "skill.md", etc.
+                  const patterns = [
+                    `skill: ${skill}`,
+                    `🔹 skill: ${skill}`,
+                    `🔹 [${skill}]`,
+                    `[${skill}]`,
+                    `${skill}.md`
+                  ];
+
+                  for (const pattern of patterns) {
+                    if (text.toLowerCase().includes(pattern.toLowerCase())) {
+                      skillCounts[skill] = (skillCounts[skill] || 0) + 1;
+                      skillTokens[skill] = (skillTokens[skill] || 0) + messageTokens;
+                      break;
+                    }
+                  }
+                });
+              }
+            } catch (e) {
+              // Ignorer les lignes invalides
+            }
+          }
+
+          return { skillCounts, skillTokens, sessionTokens };
+        })
+    );
+
+    // Fusionner les résultats
     const skillsUsage: Record<string, { count: number; tokens: number; lastUsed: number }> = {};
-
+    
     // Initialiser les skills connus
     KNOWN_SKILLS.forEach(skill => {
       skillsUsage[skill] = { count: 0, tokens: 0, lastUsed: 0 };
     });
 
-    // Parcourir les sessions actives (7 derniers jours)
-    for (const session of sessionsData) {
-      if (session.updatedAt < sevenDaysAgo) {
-        continue;
-      }
-
-      if (!existsSync(session.sessionFile)) {
-        continue;
-      }
-
-      // Lire le JSONL ligne par ligne
-      const lines = (await readFile(session.sessionFile, "utf-8")).split("\n");
-      let sessionTokens = 0;
-
-      for (const line of lines) {
-        if (!line.trim()) continue;
-
-        try {
-          const entry: MessageEntry = JSON.parse(line);
-
-          // Extraire les tokens des messages
-          let messageTokens = 0;
-          if (entry.type === "message" && entry.message?.role === "assistant") {
-            // Chercher usage dans les messages assistant
-            const content = entry.message.content || [];
-            
-            // Estimer les tokens du message (approximation basée sur la longueur du texte)
-            for (const item of content) {
-              if (item.type === "text" && item.text) {
-                // Estimation : ~4 tokens pour 1000 caractères
-                messageTokens += Math.ceil((item.text.length || 0) / 4);
-              }
-            }
-          }
-
-          // Extraire les skills mentionnés dans le texte
-          if (entry.type === "message" && entry.message?.content) {
-            const text = entry.message.content
-              .map((c: MessageContent) => c.text || "")
-              .join(" ");
-
-            // Chercher les patterns de skills
-            KNOWN_SKILLS.forEach(skill => {
-              // Pattern : "skill:", "🔹 skill:", "skill.md", etc.
-              const patterns = [
-                `skill: ${skill}`,
-                `🔹 skill: ${skill}`,
-                `🔹 [${skill}]`,
-                `[${skill}]`,
-                `${skill}.md`
-              ];
-
-              for (const pattern of patterns) {
-                if (text.toLowerCase().includes(pattern.toLowerCase())) {
-                  skillsUsage[skill] = skillsUsage[skill] || { count: 0, tokens: 0, lastUsed: 0 };
-                  skillsUsage[skill].count += 1;
-                  skillsUsage[skill].tokens += messageTokens;
-                  skillsUsage[skill].lastUsed = Math.max(skillsUsage[skill].lastUsed, session.updatedAt);
-                  break;
-                }
-              }
-            });
-          }
-        } catch (e) {
-          // Ignorer les lignes invalides
+    for (const result of skillsResults) {
+      for (const [skill, count] of Object.entries(result.skillCounts)) {
+        if (count > 0) {
+          skillsUsage[skill] = {
+            count: skillsUsage[skill].count + count,
+            tokens: skillsUsage[skill].tokens + result.skillTokens[skill],
+            lastUsed: Math.max(skillsUsage[skill].lastUsed, result.sessionTokens > 0 ? result.sessionTokens : 0)
+          };
         }
       }
     }

@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis } from "recharts";
-import { Brain, Clock } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Brain } from "lucide-react";
+import { useEffect, useState, useCallback } from "react";
 
 interface ModelData {
   model: string;
@@ -50,14 +50,16 @@ export function ModelsChart() {
     value: m.total_tokens
   })) ?? [];
 
-  const renderLabel = (entry: any) => {
-    return `${entry.name}: ${entry.value}`;
+  // Fixed label render function for PieChart - receives PieLabelRenderProps from Recharts
+  const renderLabel = (props: { name?: string; value?: number; percent?: number }) => {
+    const { name, value, percent } = props;
+    const percentage = ((percent ?? 0) * 100).toFixed(1);
+    return `${name} (${percentage}%)`;
   };
 
-  const renderCustomizedLabel = (entry: any) => {
-    const percentage = (entry.value / 1000000 * 100).toFixed(1);
-    return `${entry.name} (${percentage}%)`;
-  };
+  // Fixed heights for charts (responsive handled by ResponsiveContainer)
+  const PIE_HEIGHT = 220;
+  const BAR_HEIGHT = 160;
 
   return (
     <Card>
@@ -76,36 +78,39 @@ export function ModelsChart() {
           <>
             {/* Pie Chart */}
             {chartData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={200}>
-                <PieChart>
-                  <Pie
-                    data={chartData}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={renderLabel}
-                    outerRadius={80}
-                    innerRadius={40}
-                    paddingAngle={5}
-                  >
-                    {chartData.map((entry, index) => (
-                      <Cell 
-                        key={`cell-${index}`} 
-                        fill={COLORS[index % COLORS.length]} 
-                        name={entry.name}
-                      />
-                    ))}
-                  </Pie>
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: "#1e293b", 
-                      border: "1px solid #334155", 
-                      borderRadius: "8px" 
-                    }}
-                    formatter={(value: any) => `${value} tokens`}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
+              <div className="w-full" style={{ height: PIE_HEIGHT }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={chartData}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={renderLabel}
+                      outerRadius={80}
+                      innerRadius={40}
+                      paddingAngle={5}
+                      dataKey="value"
+                    >
+                      {chartData.map((entry, index) => (
+                        <Cell 
+                          key={`cell-${index}`} 
+                          fill={COLORS[index % COLORS.length]} 
+                          name={entry.name}
+                        />
+                      ))}
+                    </Pie>
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: "#1e293b", 
+                        border: "1px solid #334155", 
+                        borderRadius: "8px" 
+                      }}
+                      formatter={(value: any) => `${value.toLocaleString()} tokens`}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
             ) : (
               <div className="text-center text-slate-400 py-4">
                 Aucune donnée disponible
@@ -114,39 +119,41 @@ export function ModelsChart() {
 
             {/* Bar Chart for Input/Output */}
             {chartData.length > 0 && (
-              <ResponsiveContainer width="100%" height={150}>
-                <BarChart data={chartData.slice(0, 5)}>
-                  <XAxis 
-                    dataKey="name" 
-                    stroke="#64748b" 
-                    fontSize={11}
-                    tickLine={false}
-                    axisLine={false}
-                  />
-                  <YAxis 
-                    stroke="#64748b" 
-                    fontSize={11}
-                    tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
-                    tickLine={false}
-                    axisLine={false}
-                    width={40}
-                  />
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: "#1e293b", 
-                      border: "1px solid #334155", 
-                      borderRadius: "8px" 
-                    }}
-                    labelStyle={{ color: "#fff" }}
-                    formatter={(value: any) => `${value} tokens`}
-                  />
-                  <Bar 
-                    dataKey="value" 
-                    fill="#3b82f6" 
-                    radius={[4, 4, 0, 0]}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
+              <div className="w-full" style={{ height: BAR_HEIGHT }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={chartData.slice(0, 5)}>
+                    <XAxis 
+                      dataKey="name" 
+                      stroke="#64748b" 
+                      fontSize={11}
+                      tickLine={false}
+                      axisLine={false}
+                    />
+                    <YAxis 
+                      stroke="#64748b" 
+                      fontSize={11}
+                      tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
+                      tickLine={false}
+                      axisLine={false}
+                      width={40}
+                    />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: "#1e293b", 
+                        border: "1px solid #334155", 
+                        borderRadius: "8px" 
+                      }}
+                      labelStyle={{ color: "#fff" }}
+                      formatter={(value: any) => `${value.toLocaleString()} tokens`}
+                    />
+                    <Bar 
+                      dataKey="value" 
+                      fill="#3b82f6" 
+                      radius={[4, 4, 0, 0]}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             )}
 
             {/* Legend */}
